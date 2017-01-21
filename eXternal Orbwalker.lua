@@ -2,7 +2,7 @@ class "EOW"
 
 function EOW:__init()
 
-	self.Version = 0.01
+	self.Version = 0.02
 
 	self.bonusDamageTable = {
 		["Aatrox"] = function(source, target, ADDmg, APDmg, TRUEDmg)
@@ -255,8 +255,6 @@ function EOW:__init()
 	["Graves"] = function() return self:GotBuff(myHero, "gravesbasicattackammo1") > 0 end
 	}
 	
-	self.Test = nil
-	
 	self.Structures = {}
 	
 	self.attacksEnabled = true
@@ -482,11 +480,11 @@ function EOW:GetProjectileSpeed(champ)
 	local SP = self.SpecialProjectiles[champ.charName]
 	local SP2 = self.SpecialProjectiles2[champ.charName]
 	if SP then
-		if self:GotBuff(SP.buff) > 0 then
+		if self:GotBuff(champ, SP.name) > 0 then
 			return SP.speed
 		end
 	elseif SP2 then
-		if self:GotBuff(SP2.buff) > 0 then
+		if champ:GetSpellData(_Q).name == SP2.name then
 			return SP2.speed
 		end
 	end
