@@ -746,11 +746,7 @@ function EOW:GetDamage(source, target)
 			APDmg = APDmg + 0.5 * source.ap
 		end
 	end
-	
-	if TRUEDmg > 0 then
-		print(source.charName..": "..TRUEDmg.." "..target.charName)
-	end
-	
+
 	return self:CalcPhysicalDamage(source, target, ADDmg) + self:CalcMagicalDamage(source, target, APDmg) + TRUEDmg
 end
 
