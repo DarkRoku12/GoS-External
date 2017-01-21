@@ -2,7 +2,7 @@ class "EOW"
 
 function EOW:__init()
 
-	self.Version = 0.001
+	self.Version = 0.01
 
 	self.bonusDamageTable = {
 		["Aatrox"] = function(source, target, ADDmg, APDmg, TRUEDmg)
