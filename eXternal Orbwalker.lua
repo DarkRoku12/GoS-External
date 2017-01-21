@@ -187,7 +187,7 @@ function EOW:__init()
 			return ADDmg, APDmg, TRUEDmg
 		end,]]
 		["Rumble"] = function(source, target, ADDmg, APDmg, TRUEDmg)
-			return ADDmg, APDmg + (GetCurrentMana(source) == 100 and 20+(5*source.levelData.lvl) + source.ap*0.3 or 0), TRUEDmg
+			return ADDmg, APDmg + (source.mana == 100 and 20+(5*source.levelData.lvl) + source.ap*0.3 or 0), TRUEDmg
 		end,	
 		["Riven"] = function(source, target, ADDmg, APDmg, TRUEDmg)
 			return ADDmg + (self:GotBuff(source, "rivenpassiveaaboost") > 0 and (({0.25,0.25,0.25,0.25,0.25,0.3,0.3,0.3,0.35,0.35,0.35,0.4,0.45,0.45,0.45,0.45,0.45,0.5})[source.levelData.lvl] * ADDmg) or 0), APDmg, TRUEDmg
