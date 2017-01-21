@@ -130,7 +130,7 @@ function EOW:__init()
 			return ADDmg + (self:GotBuff(source, "NasusQ") > 0 and ({30,50,70,90,110})[source:GetSpellData(_Q).level] + GotBuff(source, "NasusQStacks").Stacks or 0) , APDmg, TRUEDmg
 		end,]]
 		["Nidalee"] = function(source, target, ADDmg, APDmg, TRUEDmg)
-			return ADDmg, ADDmg + (self:GotBuff(source, "Takedown") > 0 and math.max(({5,30,55,80})[GetCastLevel(source, _R)] + (ADDmg * 0.75) + (source.ap*0.4), ({1,1.25,1.5,1.75})[GetCastLevel(source, _R)] * math.min((((source.maxHealth - target.health) / source.maxHealth) * 100), ({1,1.25,1.5,1.75})[GetCastLevel(source, _R)])) or 0), TRUEDmg
+			return ADDmg, ADDmg + (self:GotBuff(source, "Takedown") > 0 and math.max(({5,30,55,80})[source:GetSpellData(_R).level] + (ADDmg * 0.75) + (source.ap*0.4), ({1,1.25,1.5,1.75})[source:GetSpellData(_R).level] * math.min((((source.maxHealth - target.health) / source.maxHealth) * 100), ({1,1.25,1.5,1.75})[source:GetSpellData(_R).level)])) or 0), TRUEDmg
 		end,
 		["Orianna"] = function(source, target, ADDmg, APDmg, TRUEDmg)
 			return ADDmg, APDmg + 10 + 8 * math.ceil(source.levelData.lvl/3) + 0.15*source.ap, TRUEDmg
