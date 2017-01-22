@@ -994,4 +994,5 @@ function EOW:GetPriority(unit)
 	return 1
 end	
 
+EOWLoaded = true
 EOW()
