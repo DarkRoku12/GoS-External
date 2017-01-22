@@ -1,9 +1,9 @@
 class "EOW"
 
 function EOW:__init()
-
-	self.Version = 0.02
-
+	
+	self.ScriptVersion = "0.03"
+	
 	self.bonusDamageTable = {
 		["Aatrox"] = function(source, target, ADDmg, APDmg, TRUEDmg)
 			return ADDmg+ (self:GotBuff(source, "aatroxwonhpowerbuff") > 0 and ({60,95,130,165,200})[source:GetSpellData(_W).level] + source.baseDamage or 0), APDmg, TRUEDmg
@@ -209,8 +209,8 @@ function EOW:__init()
 	["Gnar"] = {name = "gnartransform", speed = math.huge},
 	["Poppy"] = {name = "poppypassivebuff", speed = 1800},
 	["Ivern"] = {name = "ivernwpassive", speed = 1600},
-	["Viktor"] = {name = "", speed = 3000}
-	}
+	["Viktor"] = {name = "ViktorPowerTransferReturn", speed = 3000}
+	}	
 
 	self.SpecialProjectiles2 = {
 	["Nidalee"] = {name = "Takedown", speed = math.huge},
@@ -257,6 +257,8 @@ function EOW:__init()
 	
 	self.Structures = {}
 	
+	self.ClickTarget = nil
+	
 	self.attacksEnabled = true
 	self.movementsEnabled = true
 	self.ForceMove = nil
@@ -266,12 +268,25 @@ function EOW:__init()
 	
 	Callback.Add("Tick", function() self:Tick() end)
 	Callback.Add("Draw", function() self:Draw() end)
+	Callback.Add("WndMsg", function(msg, key) self:WndMsg(msg, key) end)
 	Callback.Add("Load", function() self:Load() end)
+end
+
+function EOW:WndMsg(msg, key)
+	if key == 0 and msg == 513 then
+		for x = 1, Game.HeroCount() do
+			local h = Game.Hero(x)
+			if h.isEnemy and not h.dead and mousePos:DistanceTo(h.pos) <= h.boundingRadius * 2 then
+				self.ClickTarget = h
+				return
+			end
+		end
+		self.ClickTarget = nil
+	end
 end
 
 function EOW:Load()
 	self:MakeMenu()
-	
 	for x = 1, Game.ObjectCount() do
 		local o = Game.Object(x)
 		if o.isEnemy then
@@ -309,9 +324,26 @@ function EOW:MakeMenu()
 	
 	EOWMenu:MenuElement({id = "Draw", name = "Drawings", type = MENU, leftIcon = "http://www.clipartbest.com/cliparts/dc7/o55/dc7o559gi.png"})
 	EOWMenu.Draw:MenuElement({id = "DA", name = "Disable All Drawings", value = false})
-	EOWMenu.Draw:MenuElement({id = "DAA", name = "Draw Auto Attack Range", value = true})
-	EOWMenu.Draw:MenuElement({id = "DEAA", name = "Draw Enemy Auto Attack Range", value = true})
-	EOWMenu.Draw:MenuElement({id = "DLH", name = "Draw LastHit", value = true})
+	
+	EOWMenu.Draw:MenuElement({id = "DAA", name = "Draw Auto Attack Range", type = MENU})
+	EOWMenu.Draw.DAA:MenuElement({id = "Enabled", name = "Enabled", value = true})
+	EOWMenu.Draw.DAA:MenuElement({id = "Width", name = "Width", value = 1, min = 1, max = 5, step = 1})
+	EOWMenu.Draw.DAA:MenuElement({id = "Color", name = "Color", color = Draw.Color(255, 255, 255, 255)})
+	
+	EOWMenu.Draw:MenuElement({id = "DEAA", name = "Draw Enemy Auto Attack Range", type = MENU})
+	EOWMenu.Draw.DEAA:MenuElement({id = "Enabled", name = "Enabled", value = true})
+	EOWMenu.Draw.DEAA:MenuElement({id = "Width", name = "Width", value = 1, min = 1, max = 5, step = 1})
+	EOWMenu.Draw.DEAA:MenuElement({id = "Color", name = "Color", color = Draw.Color(255, 255, 255, 255)})
+	
+	EOWMenu.Draw:MenuElement({id = "DT", name = "Draw Selected Target", type = MENU})
+	EOWMenu.Draw.DT:MenuElement({id = "Enabled", name = "Enabled", value = true})
+	EOWMenu.Draw.DT:MenuElement({id = "Width", name = "Width", value = 3, min = 1, max = 5, step = 1})
+	EOWMenu.Draw.DT:MenuElement({id = "Color", name = "Color", color = Draw.Color(255, 255, 0, 0)})
+	
+	EOWMenu.Draw:MenuElement({id = "DLH", name = "Draw LastHit", type = MENU})
+	EOWMenu.Draw.DLH:MenuElement({id = "Enabled", name = "Enabled", value = true})
+	EOWMenu.Draw.DLH:MenuElement({id = "Width", name = "Width", value = 3, min = 1, max = 5, step = 1})
+	EOWMenu.Draw.DLH:MenuElement({id = "Color", name = "Color", color = Draw.Color(255, 255, 255, 255)})
 	
 	EOWMenu:MenuElement({id = "Keys", name = "Keys", type = MENU, leftIcon = "https://s29.postimg.org/q3l24fyaf/680365ba69.png"})
 	EOWMenu.Keys:MenuElement({id = "CK", name = "Combo Key", key = string.byte(" ")})
@@ -333,20 +365,32 @@ end
 
 function EOW:Draw()
 
-	if EOWMenu.Draw.DA:Value() then
+	if EOWMenu.Draw.DA:Value() or myHero.dead then
 		return
 	end
 	
-	if EOWMenu.Draw.DAA:Value() and not myHero.dead then
-		Draw.Circle(myHero.pos, self:Range(myHero))
+	if EOWMenu.Draw.DAA.Enabled:Value() and not myHero.dead then
+		Draw.Circle(myHero.pos, self:Range(myHero), EOWMenu.Draw.DAA.Width:Value(), EOWMenu.Draw.DAA.Color:Value())
 	end
 	
-	if EOWMenu.Draw.DEAA:Value() then
-		for _, i in pairs(self:GetEnemyHeroes()) do
-			if not i.dead and i.visible then
-				Draw.Circle(i.pos, self:Range(i))
+	if EOWMenu.Draw.DLH.Enabled:Value() then
+		local m = self:GetLastHit()
+		if m then
+			Draw.Circle(m.pos, m.boundingRadius, EOWMenu.Draw.DLH.Width:Value(), EOWMenu.Draw.DLH.Color:Value())
+		end
+	end
+	
+	if EOWMenu.Draw.DEAA.Enabled:Value() then
+		for x = 1, Game.HeroCount() do
+			local i = Game.Hero(x)
+			if i.isEnemy and not i.dead and i.visible then
+				Draw.Circle(i.pos, self:Range(i), EOWMenu.Draw.DEAA.Width:Value(), EOWMenu.Draw.DEAA.Color:Value())
 			end
 		end
+	end
+	
+	if EOWMenu.Draw.DT.Enabled:Value() and self.ClickTarget and self.ClickTarget.visible then	
+		Draw.Circle(self.ClickTarget.pos, self.ClickTarget.boundingRadius, EOWMenu.Draw.DT.Width:Value(), EOWMenu.Draw.DT.Color:Value())
 	end
 end
 
@@ -383,7 +427,7 @@ function EOW:GetOrbTarget()
 end
 
 function EOW:GetTarget()
-	return self.TargetSelector[EOWMenu.TS.TSC:Value()]()
+	return self:CanOrb(self.ClickTarget) and self.ClickTarget or self.TargetSelector[EOWMenu.TS.TSC:Value()]()
 end
 
 function EOW:GetLastHit()
@@ -586,7 +630,7 @@ function EOW:Move()
 end
 
 function EOW:CanMove()
-	return myHero.attackData.state ~= STATE_WINDUP and Game.Timer() >= myHero.attackData.endTime - myHero.attackData.windDownTime and mousePos:DistanceTo(myHero.pos) > EOWMenu.Humanizer.HP:Value() and self.movementsEnabled
+	return Game.Timer() >= myHero.attackData.endTime - myHero.attackData.windDownTime - (Game.Latency() / 2000) and mousePos:DistanceTo(myHero.pos) > EOWMenu.Humanizer.HP:Value() and self.movementsEnabled
 end
 
 function EOW:Mode()
@@ -602,7 +646,7 @@ function EOW:Mode()
 end
 
 function EOW:CanOrb(unit)
-	return unit.team ~= myHero.team and unit.distance <= myHero.range + (myHero.boundingRadius * 0.5) + (unit.boundingRadius * 0.5) and not unit.dead and unit.isTargetable and unit.visible
+	return unit and unit.team ~= myHero.team and unit.distance <= myHero.range + (myHero.boundingRadius * 0.5) + (unit.boundingRadius * 0.5) and not unit.dead and unit.isTargetable and unit.visible
 end
 
 function EOW:ValidTarget(unit, range)
@@ -719,9 +763,9 @@ function EOW:GetDamage(source, target)
 		end	
 		
 		--RedBuff
-		if self:GotBuff(source, "BlessingoftheLizardElder") > 0 then
+		--[[if self:GotBuff(source, "BlessingoftheLizardElder") > 0 then
 			TRUEDmg = TRUEDmg + 2+(2*source.levelData.lvl)
-		end	
+		end	]]
 		
 		--Savagery Mastery
 		if target.type == Minion then
