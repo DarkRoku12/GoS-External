@@ -3,7 +3,7 @@ class "EOW"
 function EOW:__init()
 	
 	self.ScriptVersion = "0.03"
-	
+
 	self.bonusDamageTable = {
 		["Aatrox"] = function(source, target, ADDmg, APDmg, TRUEDmg)
 			return ADDmg+ (self:GotBuff(source, "aatroxwonhpowerbuff") > 0 and ({60,95,130,165,200})[source:GetSpellData(_W).level] + source.baseDamage or 0), APDmg, TRUEDmg
@@ -61,7 +61,7 @@ function EOW:__init()
 			return ADDmg, APDmg + (self:GotBuff(target, "") == 2 and ((10 * source:GetSpellData(_W).level) + ([0.06, 0.08, 0.1, 0.12, 0.14])[source:GetSpellData(_W).level] * source.maxHealth) + source.ap or 0), TRUEDmg
 		end,]]	
 		["Gragas"] = function(source, target, ADDmg, APDmg, TRUEDmg)
-			return ADDmg, APDmg + (self:GotBuff(source, "gragaswattackbuff") > 0 and 30*source:GetSpellData(_W).level-10+.3*source.ap+(.01*source:GetSpellData(_W).level+.07)*GetMaxHP(minion) or 0), TRUEDmg
+			return ADDmg, APDmg + (self:GotBuff(source, "gragaswattackbuff") > 0 and 30*source:GetSpellData(_W).level-10+.3*source.ap+(.01*source:GetSpellData(_W).level+.07) * target.maxHealth or 0), TRUEDmg
 		end,
 		["Irelia"] = function(source, target, ADDmg, APDmg, TRUEDmg)
 			return ADDmg, 0, TRUEDmg + (self:GotBuff(source, "ireliahitenstylecharged") > 0 and 25*source:GetSpellData(_W).level+5+.4*(ADDmg) or 0)
@@ -76,13 +76,13 @@ function EOW:__init()
 			return ADDmg, APDmg + (self:GotBuff(source, "jaxempowertwo") > 0 and 35*source:GetSpellData(_W).level+5+.6*source.ap or 0), TRUEDmg
 		end,
 		["Jayce"] = function(source, target, ADDmg, APDmg, TRUEDmg)
-			return ADDmg * (self:GotBuff(source, "JayceHyperCharge") and (0.68 + 0.08 * source:GetSpellData(_W).level) or 1), APDmg + (self:GotBuff(source, "jaycepassivemeleeatack") > 0 and 40*GetCastLevel(source, _R)-20+.4*source.ap or 0), TRUEDmg
+			return ADDmg * (self:GotBuff(source, "JayceHyperCharge") and (0.68 + 0.08 * source:GetSpellData(_W).level) or 1), APDmg + (self:GotBuff(source, "jaycepassivemeleeatack") > 0 and 40*source:GetSpellData(_R).level-20+.4*source.ap or 0), TRUEDmg
 		end,
 		["Jhin"] = function(source, target, ADDmg, APDmg, TRUEDmg)
-			return ADDmg + (self:GotBuff(source, "jhinpassiveattackbuff") > 0 and (((source.maxHealth - target.health) * ({0.15,0.15,0.15,0.15,0.15,0.2,0.2,0.2,0.2,0.2,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25})[myHero.level])) or 0), APDmg, TRUEDmg
+			return ADDmg + (self:GotBuff(source, "jhinpassiveattackbuff") > 0 and (((source.maxHealth - target.health) * ({0.15,0.15,0.15,0.15,0.15,0.2,0.2,0.2,0.2,0.2,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25})[myHero.levelData.lvlData.lvl])) or 0), APDmg, TRUEDmg
 		end,
 		["Jinx"] = function(source, target, ADDmg, APDmg, TRUEDmg)
-			return ADDmg + (self:GotBuff(source, "jinxq") > 0 and .1*(ADDmg) or 0), APDmg, TRUEDmg
+			return ADDmg + (self:GotBuff(source, "JinxQ") > 0 and .1*(ADDmg) or 0), APDmg, TRUEDmg
 		end,
 		["Kalista"] = function(source, target, ADDmg, APDmg, TRUEDmg)
 			return ADDmg * 0.9, APDmg, TRUEDmg
@@ -115,7 +115,7 @@ function EOW:__init()
 			return ADDmg, APDmg, TRUEDmg
 		end,]]
 		["Lucian"] = function(source, target, ADDmg, APDmg, TRUEDmg)
-			return ADDmg + (self:GotBuff(source, "lucianpassivebuff") > 0 and (({0.3,0.3,0.3,0.3,0.3,0.4,0.4,0.4,0.4,0.4,0.5,0.5,0.5,0.5,0.5,0.6,0.6,0.6})[myHero.level] * ADDmg) or 0), APDmg, TRUEDmg
+			return ADDmg + (self:GotBuff(source, "lucianpassivebuff") > 0 and (({0.3,0.3,0.3,0.3,0.3,0.4,0.4,0.4,0.4,0.4,0.5,0.5,0.5,0.5,0.5,0.6,0.6,0.6})[myHero.levelData.lvl] * ADDmg) or 0), APDmg, TRUEDmg
 		end,
 		["MasterYi"] = function(source, target, ADDmg, APDmg, TRUEDmg)
 			return ADDmg + (self:GotBuff(source, "doublestrike") > 0 and .5*(ADDmg) or 0), APDmg, TRUEDmg --[[+ (self:GotBuff(source, "") and ({14,23,32,41,50})[source:GetSpellData(_E).level] + (GetBonusDmg(source)*0.25) or 0)]]
@@ -154,7 +154,7 @@ function EOW:__init()
 			return ADDmg, APDmg, TRUEDmg
 		end,]]
 		["Talon"] = function(source, target, ADDmg, APDmg, TRUEDmg)
-			return ADDmg + (self:GotBuff(source, "talonnoxiandiplomacybuff") > 0 and 30*source:GetSpellData(_Q).level+.3*(GetBonusDmg(source)) or 0), APDmg, TRUEDmg
+			return ADDmg + (self:GotBuff(source, "talonnoxiandiplomacybuff") > 0 and 30*source:GetSpellData(_Q).level+.3*(source.bonusDamage) or 0), APDmg, TRUEDmg
 		end,
 		["Teemo"] = function(source, target, ADDmg, APDmg, TRUEDmg)
 			return ADDmg, APDmg + 10*source:GetSpellData(_E).level+0.3*source.ap, TRUEDmg
