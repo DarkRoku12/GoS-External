@@ -408,7 +408,6 @@ function EOW:__init()
 	self.Structures = {}
 	
 	self.ClickTarget = nil
-	self.LastHit = nil
 	
 	self.attacksEnabled = true
 	self.movementsEnabled = true
@@ -525,13 +524,6 @@ function EOW:Draw()
 	
 	if EOWMenu.Draw.DAA.Enabled:Value() and not myHero.dead then
 		Draw.Circle(myHero.pos, self:Range(myHero), EOWMenu.Draw.DAA.Width:Value(), EOWMenu.Draw.DAA.Color:Value())
-	end
-	
-	if EOWMenu.Draw.DLH.Enabled:Value() then
-		local m = self.LastHit
-		if m and not m.dead then
-			Draw.Circle(m.pos, m.boundingRadius, EOWMenu.Draw.DLH.Width:Value(), EOWMenu.Draw.DLH.Color:Value())
-		end
 	end
 	
 	--[[if EOWMenu.Draw.DLH.Enabled:Value() then
