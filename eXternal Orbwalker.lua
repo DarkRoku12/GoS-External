@@ -79,7 +79,7 @@ function EOW:__init()
 			return ADDmg * (self:GotBuff(source, "JayceHyperCharge") and (0.68 + 0.08 * source:GetSpellData(_W).level) or 1), APDmg + (self:GotBuff(source, "jaycepassivemeleeatack") > 0 and 40*source:GetSpellData(_R).level-20+.4*source.ap or 0), TRUEDmg
 		end,
 		["Jhin"] = function(source, target, ADDmg, APDmg, TRUEDmg)
-			return ADDmg + (self:GotBuff(source, "jhinpassiveattackbuff") > 0 and (((source.maxHealth - target.health) * ({0.15,0.15,0.15,0.15,0.15,0.2,0.2,0.2,0.2,0.2,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25})[myHero.levelData.lvlData.lvl])) or 0), APDmg, TRUEDmg
+			return ADDmg + (self:GotBuff(source, "jhinpassiveattackbuff") > 0 and (((target.maxHealth - target.health) * ({0.15,0.15,0.15,0.15,0.15,0.2,0.2,0.2,0.2,0.2,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25})[myHero.levelData.lvl])) or 0), APDmg, TRUEDmg
 		end,
 		["Jinx"] = function(source, target, ADDmg, APDmg, TRUEDmg)
 			return ADDmg + (self:GotBuff(source, "JinxQ") > 0 and .1*(ADDmg) or 0), APDmg, TRUEDmg
@@ -115,7 +115,7 @@ function EOW:__init()
 			return ADDmg, APDmg, TRUEDmg
 		end,]]
 		["Lucian"] = function(source, target, ADDmg, APDmg, TRUEDmg)
-			return ADDmg + (self:GotBuff(source, "lucianpassivebuff") > 0 and (({0.3,0.3,0.3,0.3,0.3,0.4,0.4,0.4,0.4,0.4,0.5,0.5,0.5,0.5,0.5,0.6,0.6,0.6})[myHero.levelData.lvl] * ADDmg) or 0), APDmg, TRUEDmg
+			return ADDmg + (self:GotBuff(source, "lucianpassivebuff") > 0 and (({0.3,0.3,0.3,0.3,0.3,0.4,0.4,0.4,0.4,0.4,0.5,0.5,0.5,0.5,0.5,0.6,0.6,0.6})[source.levelData.lvl] * ADDmg) or 0), APDmg, TRUEDmg
 		end,
 		["MasterYi"] = function(source, target, ADDmg, APDmg, TRUEDmg)
 			return ADDmg + (self:GotBuff(source, "doublestrike") > 0 and .5*(ADDmg) or 0), APDmg, TRUEDmg --[[+ (self:GotBuff(source, "") and ({14,23,32,41,50})[source:GetSpellData(_E).level] + (GetBonusDmg(source)*0.25) or 0)]]
