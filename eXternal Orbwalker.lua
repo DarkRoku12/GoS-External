@@ -1,204 +1,328 @@
+class "Order"
+
+function Order:__init()
+
+	self.CastingSpell = false
+	self.Attacking = false
+	self.Moving = false
+	self.BlockAttack = false
+	self.BlockMovement = false
+	self.BlockSpell = false
+	SpellToKey = {
+	[0] = HK_Q, 
+	[1] = HK_W, 
+	[2] = HK_E, 
+	[3] = HK_R, 
+	[4] = HK_SUMMONER_1, 
+	[5] = HK_SUMMONER_2,
+	[6] = HK_ITEM_1,
+	[7] = HK_ITEM_2,
+	[8] = HK_ITEM_3,
+	[9] = HK_ITEM_4,
+	[10] = HK_ITEM_5,
+	[11] = HK_ITEM_6,
+	[12] = HK_ITEM_7
+	}
+
+end
+
+function Order:CastSpell(spell, pos)
+	if self.BlockSpell or self.CastingSpell or self.Attacking or self.Moving or not SpellToKey[spell] or Game.CanUseSpell(spell) ~= 0 then
+		return
+	end
+	self.CastingSpell = true
+	local spell = SpellToKey[spell]
+	if pos then
+		local LastMousePos = mousePos
+		Control.SetCursorPos(pos)
+		DelayAction(function()
+			Control.KeyDown(spell)
+			Control.KeyUp(spell)
+			DelayAction(function()
+				Control.SetCursorPos(LastMousePos)
+				self.CastingSpell = false
+			end, 0.001)
+		end, 0.001)
+	else
+		Control.KeyDown(spell)
+		Control.KeyUp(spell)
+		self.CastingSpell = false
+	end
+end
+
+function Order:RightClick()
+	Control.mouse_event(0x0008)
+	Control.mouse_event(0x0010)
+end
+
+function Order:Attack(unit)
+	if self.BlockAttack or self.CastingSpell or self.Attacking or self.Moving then
+		return
+	end
+	self.Attacking = true
+	local LastMousePos = mousePos
+	local TCO = HK_TCO
+	if unit.type == Obj_AI_Hero then
+		Control.KeyDown(TCO)
+	else
+		Control.KeyUp(TCO)
+	end
+	Control.SetCursorPos(unit.pos)
+	DelayAction(function()
+		self:RightClick()
+		DelayAction(function()
+			Control.SetCursorPos(LastMousePos)
+			Control.KeyUp(TCO)
+			self.Attacking = false
+		end, 0.001)
+	end, 0.001)
+end
+
+function Order:Move(pos)
+	if self.BlockMovement or self.CastingSpell or self.Attacking or self.Moving then
+		return
+	end
+	self.Moving = true
+	local TCO = HK_TCO
+	Control.KeyDown(TCO)
+	if pos then
+		local LastMousePos = mousePos
+		Control.SetCursorPos(pos)
+		DelayAction(function()
+			self:RightClick()
+			DelayAction(function()
+				Control.SetCursorPos(LastMousePos)
+				Control.KeyUp(TCO)
+				self.Moving = false
+			end, 0.001)
+		end, 0.001)
+	else
+		self:RightClick()
+		DelayAction(function()
+			Control.KeyUp(TCO)
+			self.Moving = false
+		end, 0.001)
+	end
+end
+
+function Order:BlockAttacks(bool)
+	self.BlockAttack = bool 
+end
+
+function Order:BlockMovements(bool)
+	self.BlockMovement = bool
+end
+
+function Order:BlockSpells(bool)
+	self.BlockSpell = bool
+end
+
 class "EOW"
 
 function EOW:__init()
 	
-	self.ScriptVersion = "0.03"
-
+	self.ScriptVersion = "0.04"
+	
 	self.bonusDamageTable = {
-		["Aatrox"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Aatrox"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg+ (self:GotBuff(source, "aatroxwonhpowerbuff") > 0 and ({60,95,130,165,200})[source:GetSpellData(_W).level] + source.baseDamage or 0), APDmg, TRUEDmg
 		end,
-		["Ashe"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Ashe"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			local BonusCritDamage = self:GetItemSlot(source, 3031) > 0 and 0.5 or 0
 			return ADDmg + (self:GotBuff(source, "asheqattack") > 0 and ({0.05,0.1,0.15,0.2,0.25})[source:GetSpellData(_Q).level] * ADDmg or self:GotBuff(target, "ashepassiveslow") > 0 and ADDmg*(0.1 + (source.critChance * (1 + BonusCritDamage))) or 1), APDmg, TRUEDmg
 		end,
-		--[[["Akali"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		--[[["Akali"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (ADDmg * (0.06 + ((source.ap / 6) * 0.01))), TRUEDmg
 		end,]]
-		["Bard"] = function(source, target, ADDmg, APDmg, TRUEDmg)
-			return ADDmg, APDmg+(self:GotBuff(source, "bardpspiritammocount") > 0 and 30 + source.levelData.lvl * 15 + 0.3 * source.ap or 0), TRUEDmg
+		["Bard"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
+			return ADDmg, APDmg + (self:GotBuff(source, "bardpspiritammocount") > 0 and 30 + source.levelData.lvl * 15 + 0.3 * source.ap or 0), TRUEDmg
 		end,
-		["Blitzcrank"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Blitzcrank"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg * (self:GotBuff(source, "powerfist") + 1), APDmg, TRUEDmg
 		end,
-		--[[["Braum"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		--[[["Braum"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (GetBuffData(target, "").Count == 3 and 16 + (10 * source.levelData.lvl) or 0), TRUEDmg
 		end,]]
-		["Caitlyn"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Caitlyn"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "caitlynheadshot") > 0 and 1.5*(ADDmg) or 0), APDmg, TRUEDmg
 		end,
-		["Chogath"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Chogath"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (self:GotBuff(source, "vorpalspikes") > 0 and 15 * source:GetSpellData(_E).level + 5 + .3 * source.ap or 0), APDmg, TRUEDmg
 		end,
-		["Corki"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Corki"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg * 0.5, APDmg + (ADDmg * 0.5), TRUEDmg
 		end,
-		["Darius"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Darius"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "dariusnoxiantacticsonh") > 0 and .4*(ADDmg) or 0), APDmg, TRUEDmg
 		end,
-		["Diana"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Diana"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (self:GotBuff(source, "dianaarcready") > 0 and math.max(5*source.levelData.lvl+15,10*source.levelData.lvl-10,15*source.levelData.lvl-60,20*source.levelData.lvl-125,25*source.levelData.lvl-200)+.8*source.ap or 0), TRUEDmg
 		end,
-		["Draven"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Draven"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "DravenSpinning") > 0 and (({0.45,0.55,0.65,0.75,0.85})[source:GetSpellData(_Q).level] * ADDmg) or 0), APDmg, TRUEDmg
 		end,
-		--[[["DrMundo"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		--[[["DrMundo"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "") > 0 and ({0.03, 0.035, 0.04, 0.045, 0.05})[source:GetSpellData(_E).level] * source.maxHealth)
 		end,]]
-		["Ekko"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Ekko"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (self:GotBuff(source, "ekkoeattackbuff") > 0 and 30*source:GetSpellData(_E).level+20+.2*source.ap or 0) + (self:GotBuff(target, "") == 2 and (10 + (10 * source.levelData.lvl)) + source.ap or 0), TRUEDmg
 		end,	
-		["Fizz"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Fizz"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (self:GotBuff(source, "fizzseastonepassive") > 0 and 5*source:GetSpellData(_W).level+5+.3*source.ap or 0), TRUEDmg
 		end,
-		--[[["Fiora"] = function(source, target, ADDmg, APDmg, TRUEDmg)
-			return ADDmg + (self:GotBuff(source, "") > 0 and source.totalDamage + ({1.4, 1.55, 1.7, 1.85, 2})[source:GetSpellData(_E).level] or 1), APDmg, TRUEDmg
+		--[[["Fiora"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
+			return ADDmg + (self:GotBuff(source, "") > 0 and source.totalDamage + ({1.4, 1.55, 1.7, 1.85, 2})[source:GetSpellData(_E).level] or 0), APDmg, TRUEDmg
 		end,]]
-		["Garen"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Garen"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "garenq") > 0 and 25*source:GetSpellData(_Q).level+5+.4*(ADDmg) or 0), APDmg, TRUEDmg
 		end,
-		--[[["Gnar"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		--[[["Gnar"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (self:GotBuff(target, "") == 2 and ((10 * source:GetSpellData(_W).level) + ([0.06, 0.08, 0.1, 0.12, 0.14])[source:GetSpellData(_W).level] * source.maxHealth) + source.ap or 0), TRUEDmg
-		end,]]	
-		["Gragas"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		end,]]
+		["Graves"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
+			local BonusCritDamage = self:GetItemSlot(source, 3031) > 0 and 0.5 or 0
+			local BaseDamage = ({70,71,72,74,75,76,78,80,81,83,85,87,89,91,95,96,97,100})[myHero.levelData.lvl]
+			return source.critChance == 1 and BaseDamage + (ADDmg * (0.4 * (1 + BonusCritDamage))) or BaseDamage, APDmg, TRUEDmg
+		end,
+		["Gragas"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (self:GotBuff(source, "gragaswattackbuff") > 0 and 30*source:GetSpellData(_W).level-10+.3*source.ap+(.01*source:GetSpellData(_W).level+.07) * target.maxHealth or 0), TRUEDmg
 		end,
-		["Irelia"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Irelia"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, 0, TRUEDmg + (self:GotBuff(source, "ireliahitenstylecharged") > 0 and 25*source:GetSpellData(_W).level+5+.4*(ADDmg) or 0)
 		end,
-		["Ivern"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Ivern"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (self:GotBuff(source, "ivernwpassive") > 0 and (10+10*source:GetSpellData(_W).level) + (source.ap*0.3) or 0), TRUEDmg
 		end,		
-		["Illaoi"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Illaoi"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "IllaoiW") > 0 and math.min(300, ({0.03, 0.035, 0.04, 0.045, 0.05})[source:GetSpellData(_W).level] + (0.02 * (ADDmg / 100)) * source.maxHealth) or 0), APDmg, TRUEDmg
 		end,
-		["Jax"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Jax"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (self:GotBuff(source, "jaxempowertwo") > 0 and 35*source:GetSpellData(_W).level+5+.6*source.ap or 0), TRUEDmg
 		end,
-		["Jayce"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Jayce"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg * (self:GotBuff(source, "JayceHyperCharge") and (0.68 + 0.08 * source:GetSpellData(_W).level) or 1), APDmg + (self:GotBuff(source, "jaycepassivemeleeatack") > 0 and 40*source:GetSpellData(_R).level-20+.4*source.ap or 0), TRUEDmg
 		end,
-		["Jhin"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Jhin"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "jhinpassiveattackbuff") > 0 and (((target.maxHealth - target.health) * ({0.15,0.15,0.15,0.15,0.15,0.2,0.2,0.2,0.2,0.2,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25})[myHero.levelData.lvl])) or 0), APDmg, TRUEDmg
 		end,
-		["Jinx"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Jinx"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "JinxQ") > 0 and .1*(ADDmg) or 0), APDmg, TRUEDmg
 		end,
-		["Kalista"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Kalista"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg * 0.9, APDmg, TRUEDmg
 		end,
-		["Kindred"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Kindred"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (target.health * (self:GotBuff(source, "kindredmarkofthekindredstackcounter")) * 0.0125), APDmg, TRUEDmg
 		end,
-		["Kassadin"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Kassadin"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (self:GotBuff(source, "netherbladebuff") > 0 and 20+.1*source.ap or (self:GotBuff(source, "netherblade") > 0 and 25*source:GetSpellData(_W).level+15+.6*source.ap or 0)), TRUEDmg
 		end,
-		--[[["KogMaw"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		--[[["KogMaw"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + ( self:GotBuff(source, "") > 0 and (({0.02,0.03,0.04,0.05,0.06})[source:GetSpellData(_W).level] + math.floor(source.ap/100)/100) * source.maxHealth or 0) , TRUEDmg
 		end,]]
-		["Katarina"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Katarina"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (self:GotBuff(target, "katarinaqmark") > 0 and ((15 * source:GetSpellData(_Q).level) + (source.ap * 0.2)) or 0), TRUEDmg 
 		end,
-		["Kayle"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Kayle"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (self:GotBuff(source, "kaylerighteousfurybuff") > 0 and 5*source:GetSpellData(_E).level+5+.15*source.ap or 0) + (self:GotBuff(source, "judicatorrighteousfury") > 0 and 5*source:GetSpellData(_E).level+5+.15*source.ap or 0), TRUEDmg
 		end,
-		--[[["Kled"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		--[[["Kled"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg, TRUEDmg
 		end,]]
-		["Leona"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Leona"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (self:GotBuff(source, "leonashieldofdaybreak") > 0 and 30*source:GetSpellData(_Q).level+10+.3*source.ap or 0), TRUEDmg
 		end,
-		["Lux"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Lux"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (self:GotBuff(source, "luxilluminatingfraulein") > 0 and 10+(source.levelData.lvl*8)+(source.ap*0.2) or 0), TRUEDmg
 		end,
-		--[[["Lulu"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		--[[["Lulu"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg, TRUEDmg
 		end,]]
-		["Lucian"] = function(source, target, ADDmg, APDmg, TRUEDmg)
-			return ADDmg + (self:GotBuff(source, "lucianpassivebuff") > 0 and (({0.3,0.3,0.3,0.3,0.3,0.4,0.4,0.4,0.4,0.4,0.5,0.5,0.5,0.5,0.5,0.6,0.6,0.6})[source.levelData.lvl] * ADDmg) or 0), APDmg, TRUEDmg
+		["Lucian"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
+			return ADDmg + (self:GotBuff(source, "lucianpassivebuff") > 0 and (({0.3,0.3,0.3,0.3,0.3,0.4,0.4,0.4,0.4,0.4,0.5,0.5,0.5,0.5,0.5,0.6,0.6,0.6})[myHero.levelData.lvl] * ADDmg) or 0), APDmg, TRUEDmg
 		end,
-		["MasterYi"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["MasterYi"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "doublestrike") > 0 and .5*(ADDmg) or 0), APDmg, TRUEDmg --[[+ (self:GotBuff(source, "") and ({14,23,32,41,50})[source:GetSpellData(_E).level] + (GetBonusDmg(source)*0.25) or 0)]]
 		end,
-		--[[["Malphite"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		--[[["Malphite"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg, TRUEDmg
 		end,]]
-		["Nocturne"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Nocturne"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "nocturneumrablades") > 0 and .2*(ADDmg) or 0), APDmg, TRUEDmg
 		end,
-		--[[["Nasus"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		--[[["Nasus"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "NasusQ") > 0 and ({30,50,70,90,110})[source:GetSpellData(_Q).level] + GotBuff(source, "NasusQStacks").Stacks or 0) , APDmg, TRUEDmg
 		end,]]
-		["Nidalee"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Nidalee"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, ADDmg + (self:GotBuff(source, "Takedown") > 0 and math.max(({5,30,55,80})[source:GetSpellData(_R).level] + (ADDmg * 0.75) + (source.ap*0.4), ({1,1.25,1.5,1.75})[source:GetSpellData(_R).level] * math.min((((source.maxHealth - target.health) / source.maxHealth) * 100), ({1,1.25,1.5,1.75})[source:GetSpellData(_R).level])) or 0), TRUEDmg
 		end,
-		["Orianna"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Orianna"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + 10 + 8 * math.ceil(source.levelData.lvl/3) + 0.15*source.ap, TRUEDmg
 		end,
-		["Poppy"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Poppy"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (self:GotBuff(source, "poppypassivebuff") and 10*source.levelData.lvl or 0), TRUEDmg
 		end,	
-		["Quinn"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Quinn"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(target, "QuinnW") > 0 and ({15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100})[source.levelData.lvl] + (({0.16,0.18,0.20,0.22,0.24,0.26,0.28,0.30,0.32,0.34,0.36,0.38,0.40,0.42,0.44,0.46,0.48,0.50})[source.levelData.lvl] * ADDmg) or 0), APDmg, TRUEDmg
 		end,	
-		["RekSai"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["RekSai"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "reksaiq") > 0 and 10*source:GetSpellData(_Q).level+5+.2*(ADDmg) or 0), APDmg, TRUEDmg
 		end,
-		["Rengar"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Rengar"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "rengarqbase") > 0 and ({30,60,90,120,150})[source:GetSpellData(_Q).level] + ADDmg * ({0,0.05,0.1,0.15,0.2})[source:GetSpellData(_Q).level] or 0) + (self:GotBuff(source, "rengarqemp") > 0 and ({30,45,60,75,90,105,120,135,150,160,170,180,190,200,210,220,230,240})[source.levelData.lvl] + (0.3*ADDmg) or 0), APDmg, TRUEDmg
 		end,
-		["Shyvana"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Shyvana"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "shyvanadoubleattack") > 0 and (.05*source:GetSpellData(_Q).level+.75)*(ADDmg) or 0), APDmg, TRUEDmg
 		end,
-		--[[["Sona"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		--[[["Sona"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg, TRUEDmg
 		end,]]
-		["Talon"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Talon"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "talonnoxiandiplomacybuff") > 0 and 30*source:GetSpellData(_Q).level+.3*(source.bonusDamage) or 0), APDmg, TRUEDmg
 		end,
-		["Teemo"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Teemo"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + 10*source:GetSpellData(_E).level+0.3*source.ap, TRUEDmg
 		end,
-		["Trundle"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Trundle"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "trundletrollsmash") > 0 and 20*source:GetSpellData(_Q).level+((0.05*source:GetSpellData(_Q).level+0.095)*(ADDmg)) or 0), APDmg, TRUEDmg
 		end,
-		["TwistedFate"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["TwistedFate"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + ( self:GotBuff(source, "cardmasterstackparticle") > 0 and ({55,80,105,130,155})[source:GetSpellData(_E).level] + source.ap*0.5 or 0) + (self:GotBuff(source, "BlueCardPreAttack") > 0 and ({40,60,80,100,120})[source:GetSpellData(_W).level] + source.ap*0.5 or 0) + (self:GotBuff(source, "RedCardPreAttack") > 0 and ({30,45,60,75,90})[source:GetSpellData(_W).level] + source.ap*0.05 or 0) + (self:GotBuff(source, "GoldCardPreAttack") > 0 and ({15,22.5,30,37.5,45})[source:GetSpellData(_W).level] + source.ap*0.5 or 0), TRUEDmg
 		end,	
-		--[[["Udyr"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		--[[["Udyr"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg, TRUEDmg
 		end,]]
-		["Varus"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Varus"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (self:GotBuff(source, "varusw") > 0 and (4*source:GetSpellData(_W).level+6+.25*source.ap) or 0) , TRUEDmg
 		end,
-		["Vayne"] = function(source, target, ADDmg, APDmg, TRUEDmg)
-			return ADDmg + (self:GotBuff(source, "vaynetumblebonus") > 0 and (0.2 + 0.1 * (source:GetSpellData(_Q).level)) * (ADDmg) or 0), APDmg, TRUEDmg -- + (self:GotBuff(target, "VayneSilveredDebuff") == 2 and math.max(20 + 20 * source:GetSpellData(_W).level, (target.maxHealth * (0.045 + 0.015 * source:GetSpellData(_W).level))) or 0)
+		["Vayne"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
+			return ADDmg + (SourceBuffs["vaynetumblebonus"] and (0.2 + 0.1 * (source:GetSpellData(_Q).level)) * (ADDmg) or 0), APDmg, TRUEDmg + (TargetBuffs["VayneSilveredDebuff"] == 2 and math.max(20 + 20 * source:GetSpellData(_W).level, (target.maxHealth * (0.045 + 0.015 * source:GetSpellData(_W).level))) or 0)
 		end,
-		["Vi"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Vi"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "vie") > 0 and 15*source:GetSpellData(_E).level-10+.15*(ADDmg)+.7 * source.ap or 0) , APDmg, TRUEDmg
 		end,
-		--[[["Viktor"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		--[[["Viktor"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg, TRUEDmg
 		end,]]
-		["Volibear"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Volibear"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "volibearq") > 0 and 30*source:GetSpellData(_Q).level or 0), APDmg, TRUEDmg
 		end,
-		--[[["MonkeyKing"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		--[[["MonkeyKing"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg, TRUEDmg
 		end,]]
-		["Rumble"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Rumble"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (source.mana == 100 and 20+(5*source.levelData.lvl) + source.ap*0.3 or 0), TRUEDmg
 		end,	
-		["Riven"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Riven"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg + (self:GotBuff(source, "rivenpassiveaaboost") > 0 and (({0.25,0.25,0.25,0.25,0.25,0.3,0.3,0.3,0.35,0.35,0.35,0.4,0.45,0.45,0.45,0.45,0.45,0.5})[source.levelData.lvl] * ADDmg) or 0), APDmg, TRUEDmg
 		end,
-		--[[["Yorick"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		--[[["Yorick"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg, TRUEDmg
 		end,]]
-		--[[["Ziggs"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		--[[["Ziggs"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg, TRUEDmg
 		end,]]
-		["Zed"] = function(source, target, ADDmg, APDmg, TRUEDmg)
+		["Zed"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg, APDmg + (self:GotBuff(target, "zedpassivecd") == 0 and target.health < (target.maxHealth*0.5) and target.maxHealth * ({0.06,0.06,0.06,0.06,0.06,0.06,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.08,0.1,0.1})[source.levelData.lvl] or 0), TRUEDmg
 		end	
 	}
@@ -248,23 +372,53 @@ function EOW:__init()
 	[8] = function() return self:Priority() end
 	}
 	
-	self.MeleeChamps = {"Camille", "Ivern", "Aatrox", "Akali", "Alistar", "Amumu", "Blitzcrank", "Braum", "Chogath", "Darius", "Diana", "DrMundo", "Ekko", "Elise", "Evelynn", "Fiora", "Fizz", "Galio", "Gangplank", "Garen", "Gnar", "Gragas", "Hecarim", "Illaoi", "Irelia", "Ivern", "JarvanIV", "Jax", "Jayce", "Kassadin", "Katarina", "Kayle", "KhaZix", "Kled", "LeeSin", "Leona", "Malphite", "Maokai", "MasterYi", "Mordekaiser", "Nasus", "Nautilus", "Nidalee", "Nocturne", "Nunu", "Olaf", "Pantheon", "Poppy", "Rammus", "RekSai", "Renekton", "Rengar", "Riven", "Rumble", "Sejuani", "Shaco", "Shen", "Shyvana", "Singed", "Sion", "Skarner", "TahmKench", "Talon", "Taric", "Trundle", "Tryndamere", "Udyr", "Vi", "Volibear", "Warwick", "MonkeyKing", "XinZhao", "Yasuo", "Yorick", "Zac", "Zed"}
-
-	self.SpecialOrbwalking = {
-	["Jhin"] = function() return self:GotBuff(myHero, "JhinPassiveReload") == 0 end,
-	["Graves"] = function() return self:GotBuff(myHero, "gravesbasicattackammo1") > 0 end
+	self.Channeling = {
+	["Caitlyn"] = function() return self:GotBuff(myHero, "CaitlynAceintheHole") == 0 end,
+	["Fiddlesticks"] = function() return self:GotBuff(myHero, "") == 0 and self:GotBuff(myHero, "") == 0 end,
+	["Galio"] = function() return self:GotBuff(myHero, "GalioIdolOfDurand") == 0 end,
+	["Janna"] = function() return self:GotBuff(myHero, "ReapTheWhirlwind") == 0 end,
+	["Karthus"] = function() return self:GotBuff(myHero, "karthusfallenonecastsound") == 0 end,
+	["Katarina"] = function() return self:GotBuff(myHero, "katarinarsound") == 0 end,
+	["Malzahar"] = function() return self:GotBuff(myHero, "") == 0 end,
+	["MasterYi"] = function() return self:GotBuff(myHero, "Meditate") == 0 end,
+	["MissFortune"] = function() return self:GotBuff(myHero, "missfortunebulletsound") == 0 end,
+	["Nunu"] = function() return self:GotBuff(myHero, "AbsoluteZero") == 0 end,
+	["Pantheon"] = function() return self:GotBuff(myHero, "") == 0 and self:GotBuff(myHero, "") == 0 end,
+	["TwistedFate"] = function() return self:GotBuff(myHero, "Destiny") == 0 end,
+	["Urgot"] = function() return self:GotBuff(myHero, "") == 0 end,
+	["Warwick"] = function() return self:GotBuff(myHero, "") == 0 end,
+	["Shen"] = function() return self:GotBuff(myHero, "shenstandunitedlock") == 0 end,
+	["Zac"] = function() return self:GotBuff(myHero, "") == 0 end,
+	["Sion"] = function() return self:GotBuff(myHero, "") == 0 end,
+	["Xerath"] = function() return self:GotBuff(myHero, "") == 0 end,
+	["Ezreal"] = function() return self:GotBuff(myHero, "") == 0 end,
+	["Lux"] = function() return self:GotBuff(myHero, "") == 0 end,
+	["VelKoz"] = function() return self:GotBuff(myHero, "VelkozR") == 0 end
 	}
+	
+	self.Channeling2 = {
+	["Gragas"] = function() return self:GotBuff(myHero, "") == 0 end,
+	["Lucian"] = function() return self:GotBuff(myHero, "") == 0 end,
+	["Vi"] = function() return self:GotBuff(myHero, "") == 0 end,
+	["Varus"] = function() return self:GotBuff(myHero, "") == 0 end,
+	}
+	
+	self.MeleeChamps = {"Camille", "Ivern", "Aatrox", "Akali", "Alistar", "Amumu", "Blitzcrank", "Braum", "Chogath", "Darius", "Diana", "DrMundo", "Ekko", "Elise", "Evelynn", "Fiora", "Fizz", "Galio", "Gangplank", "Garen", "Gnar", "Gragas", "Hecarim", "Illaoi", "Irelia", "Ivern", "JarvanIV", "Jax", "Jayce", "Kassadin", "Katarina", "Kayle", "KhaZix", "Kled", "LeeSin", "Leona", "Malphite", "Maokai", "MasterYi", "Mordekaiser", "Nasus", "Nautilus", "Nidalee", "Nocturne", "Nunu", "Olaf", "Pantheon", "Poppy", "Rammus", "RekSai", "Renekton", "Rengar", "Riven", "Rumble", "Sejuani", "Shaco", "Shen", "Shyvana", "Singed", "Sion", "Skarner", "TahmKench", "Talon", "Taric", "Trundle", "Tryndamere", "Udyr", "Vi", "Volibear", "Warwick", "MonkeyKing", "XinZhao", "Yasuo", "Yorick", "Zac", "Zed"}
 	
 	self.Structures = {}
 	
 	self.ClickTarget = nil
+	self.LastHit = nil
 	
 	self.attacksEnabled = true
 	self.movementsEnabled = true
+	self.Attacking = false
+	self.Moving = false
 	self.ForceMove = nil
 	self.ForceTarget = nil
 	self.LastMovement = 0
 	self.LastAttack = 0
+	self.ClickDelay = 0.002
 	
 	Callback.Add("Tick", function() self:Tick() end)
 	Callback.Add("Draw", function() self:Draw() end)
@@ -319,7 +473,8 @@ function EOW:MakeMenu()
 	EOWMenu.Farm:MenuElement({id = "DES", name = "Double-Edge Sword", value = false, leftIcon = "http://www.mobafire.com/images/mastery-s4/double-edged-sword.png"})
 	
 	EOWMenu:MenuElement({id = "Humanizer", name = "Humanizer", type = MENU, leftIcon = "https://s.put.re/9a8eB4T.png"})
-	EOWMenu.Humanizer:MenuElement({id = "MD", name = "Movement Delay", value = 200, min = 50, max = 1000, step = 2})
+	EOWMenu.Humanizer:MenuElement({id = "MinMD", name = "Min Movement Delay", value = 50, min = 0, max = 750, step = 1})
+	EOWMenu.Humanizer:MenuElement({id = "MaxMD", name = "Max Movement Delay", value = 300, min = 0, max = 750, step = 1})
 	EOWMenu.Humanizer:MenuElement({id = "HP", name = "Hold Position", value = 120, min = 0, max = 300, step = 2})
 	
 	EOWMenu:MenuElement({id = "Draw", name = "Drawings", type = MENU, leftIcon = "http://www.clipartbest.com/cliparts/dc7/o55/dc7o559gi.png"})
@@ -356,7 +511,7 @@ end
 function EOW:Tick()
 	self.attacksEnabled = EOWMenu.Config.AE:Value()
 	self.movementsEnabled = EOWMenu.Config.ME:Value()
-
+	
 	if self:Mode() ~= "" then
 		self:Attack()
 		self:Move()
@@ -364,7 +519,6 @@ function EOW:Tick()
 end
 
 function EOW:Draw()
-
 	if EOWMenu.Draw.DA:Value() or myHero.dead then
 		return
 	end
@@ -374,44 +528,54 @@ function EOW:Draw()
 	end
 	
 	if EOWMenu.Draw.DLH.Enabled:Value() then
-		local m = self:GetLastHit()
-		if m then
+		local m = self.LastHit
+		if m and not m.dead then
 			Draw.Circle(m.pos, m.boundingRadius, EOWMenu.Draw.DLH.Width:Value(), EOWMenu.Draw.DLH.Color:Value())
 		end
 	end
 	
-	if EOWMenu.Draw.DEAA.Enabled:Value() then
-		for x = 1, Game.HeroCount() do
-			local i = Game.Hero(x)
-			if i.isEnemy and not i.dead and i.visible then
-				Draw.Circle(i.pos, self:Range(i), EOWMenu.Draw.DEAA.Width:Value(), EOWMenu.Draw.DEAA.Color:Value())
-			end
+	--[[if EOWMenu.Draw.DLH.Enabled:Value() then
+		local m = self:GetLastHit()
+		if m then
+			Draw.Circle(m.pos, m.boundingRadius, EOWMenu.Draw.DLH.Width:Value(), EOWMenu.Draw.DLH.Color:Value())
 		end
-	end
+	end]]
 	
-	if EOWMenu.Draw.DT.Enabled:Value() and self.ClickTarget and self.ClickTarget.visible then	
+	if EOWMenu.Draw.DT.Enabled:Value() and self.ClickTarget and not self.ClickTarget.dead and self.ClickTarget.visible then	
 		Draw.Circle(self.ClickTarget.pos, self.ClickTarget.boundingRadius, EOWMenu.Draw.DT.Width:Value(), EOWMenu.Draw.DT.Color:Value())
 	end
 end
 
 function EOW:Attack()
-	if not self.attacksEnabled or GetTickCount() < self.LastAttack then
+	if not self.attacksEnabled then
 		return
 	end
 	
 	local Target = self:GetOrbTarget()
 	if Target and self:CanOrb(Target) and self:CanAttack() then
-		if Target.type == Obj_AI_Hero then
-			if not Control.IsKeyDown(223) then
-				Control.KeyDown(223)
-			end
-		elseif Control.KeyDown(223) then
-			Control.KeyUp(223)
-		end
-		self.LastAttack = GetTickCount() + Game.Latency()
-		Control.Attack(Target)
-		Control.KeyUp(223)
+		Order:Attack(Target)
 	end
+end
+
+function EOW:GetAttackDelayOffsetPercent(unit)
+	--soontm :pepo:
+end
+
+function EOW:GetAttackDelayCastOffsetPercent(unit)
+	--soontm :pepo:
+end
+
+function EOW:GetWindUp(unit)
+	return unit.attackData.windUpTime
+end
+
+function EOW:GetAnimationTime(unit)
+	return unit.attackData.animationTime
+end
+
+function EOW:GetWindDown(unit)
+	local AD = unit.attackData
+	return math.max(AD.animationTime - AD.windUpTime, AD.windDownTime)
 end
 
 function EOW:GetOrbTarget()
@@ -434,10 +598,11 @@ function EOW:GetLastHit()
 	for x = 1, Game.MinionCount() do
 		local m = Game.Minion(x)
 		if m.isEnemy and self:CanOrb(m) then
-			local AD = myHero.attackData
 			local PS = self:GetProjectileSpeed(myHero)
-			local hp = self:PredictHealth(m, AD.windUpTime + (m.distance/PS))
+			local Dis = myHero.pos:DistanceTo(m.pos)
+			local hp = self:PredictHealth(m, self:GetWindUp(myHero) + (Dis/PS))
 			if hp > 0 and hp <= self:GetDamage(myHero, m) then
+				self.LastHit = m
 				return m
 			end
 		end
@@ -479,9 +644,8 @@ function EOW:GetLaneclear()
 	for x = 1, Game.MinionCount() do
 		local m = Game.Minion(x)
 		if m.isEnemy and self:CanOrb(m) then
-			local AD = myHero.attackData
 			local PS = self:GetProjectileSpeed(myHero)
-			local PredHP = self:PredictHealth(m, (AD.windUpTime + AD.animationTime) + (m.distance/PS))
+			local PredHP = self:PredictHealth(m, (self:GetWindUp(myHero) + self:GetAnimationTime(myHero)) + (m.distance/PS))
 			local Damage = self:GetDamage(myHero, m)
 			if PredHP ~= m.health and PredHP - Damage <= Damage then
 				return nil
@@ -517,7 +681,16 @@ function EOW:MovementsEnabled(bool)
 end
 
 function EOW:IsMelee(champ)
-	return table.contains(self.MeleeChamps, champ.charName) 
+	return self:TableContains(self.MeleeChamps, champ.charName) 
+end
+
+function EOW:TableContains(tabel, thing)
+	for _, i in pairs(tabel) do
+		if i == thing or _ == thing then
+			return true
+		end
+	end
+	return false
 end
 
 function EOW:GetProjectileSpeed(champ)
@@ -546,29 +719,34 @@ function EOW:PredictHealth(unit, delta)
 	
 	local Damage = 0
 	local Handle = unit.handle
-	delta = delta + (Game.Latency() * 0.001)		
+	delta = delta - (Game.Latency() / 1000) - (self.ClickDelay/2)
 	
 	for x = 1, Game.MinionCount() do
 		local source = Game.Minion(x)
 		if source.team ~= unit.team then
 			local ad = source.attackData
-			local ps = ad.projectileSpeed > 0 and ad.projectileSpeed or math.huge 
+			local ps = ad.projectileSpeed
+			if source.charName:find("Melee") or source.charName:find("Siege") then
+				ps = math.huge 
+			end
 			if not source.dead and not unit.dead and ad.endTime > 0 and ad.target == Handle then
+				local WindUp = self:GetWindUp(source)
+				local AnimationTime = self:GetAnimationTime(source)
 				local Distance = source.pos:DistanceTo(unit.pos)
 				local TravelTime = Distance / ps
-				local AttackStartTime = ad.endTime - ad.animationTime
-				local TimeToHit = ad.windUpTime + TravelTime
+				local AttackStartTime = ad.endTime - AnimationTime
+				local TimeToHit = WindUp + TravelTime
 				local TimeWillHit = AttackStartTime + TimeToHit
-				local ReAttackTime = ad.animationTime + ad.windUpTime + TravelTime
+				local ReAttackTime = AnimationTime + WindUp + TravelTime
 				if TimeWillHit < Game.Timer() then
 					if AttackStartTime + ReAttackTime - delta < Game.Timer() then
 						Damage = Damage + self:GetDamage(source, unit)
-					end
+					end	
 				elseif TimeWillHit - delta < Game.Timer() then
 					Damage = Damage + self:GetDamage(source, unit)
 				end
 				if Damage > unit.health then
-					break
+					return unit.health - Damage
 				end
 			end
 		end
@@ -582,12 +760,14 @@ function EOW:PredictHealth(unit, delta)
 			local ad = source.attackData
 			local ps = ad.projectileSpeed
 			if not source.dead and not unit.dead and ad.endTime > 0 and source.targetID == NetwerkID then
+				local WindUp = self:GetWindUp(source)
+				local AnimationTime = self:GetAnimationTime(source)
 				local Distance = source.pos:DistanceTo(unit.pos)
 				local TravelTime = Distance / ps
-				local AttackStartTime = ad.endTime - ad.animationTime
-				local TimeToHit = ad.windUpTime + TravelTime
+				local AttackStartTime = ad.endTime - AnimationTime
+				local TimeToHit = WindUp + TravelTime
 				local TimeWillHit = AttackStartTime + TimeToHit
-				local ReAttackTime = ad.animationTime + ad.windUpTime + TravelTime
+				local ReAttackTime = AnimationTime + WindUp + TravelTime
 				if TimeWillHit < Game.Timer() then
 					if AttackStartTime + ReAttackTime - delta < Game.Timer() then
 						Damage = Damage + self:GetDamage(source, unit)
@@ -598,39 +778,43 @@ function EOW:PredictHealth(unit, delta)
 			end
 		end
 		if Damage > unit.health then
-			break
+			return unit.health - Damage
 		end
 	end
 	return unit.health - Damage
 end
 
 function EOW:CanAttack()
-	if Game.Timer() >= myHero.attackData.endTime - (Game.Latency() / 200) and self.attacksEnabled then
-		return self.SpecialOrbwalking[myHero.charName] and self.SpecialOrbwalking[myHero.charName] or true
+	if Game.Timer() >= myHero.attackData.endTime - (self.ClickDelay) - (Game.Latency()/1000) and self.attacksEnabled then
+		if myHero.charName == "Graves" or myHero.charName == "Jhin" then
+			return myHero.hudAmmo > 0
+		end
+		return true
 	end
-end
-
-function EOW:PlatyHasAModerateSizedDick()
-	return myHero.attackData.endTime - (Game.Latency() / 200)
 end
 
 function EOW:Move()
-	if not self:CanMove() or GetTickCount() < self.LastAttack then
+	if not self:CanMove() then
 		return
 	end
 	
-	if GetTickCount() >= self.LastMovement + EOWMenu.Humanizer.MD:Value() then
-		Control.KeyDown(223)
-		if Control.IsKeyDown(223) then
-			self.LastMovement = GetTickCount()
-			Control.Move()
-			Control.KeyUp(223)
-		end
+	local Max = EOWMenu.Humanizer.MaxMD:Value()
+	local Min = math.min(EOWMenu.Humanizer.MinMD:Value(), Max)
+	
+	if GetTickCount() >= self.LastMovement + math.random(Min, Max) then
+		Order:Move()
+		self.LastMovement = GetTickCount()
 	end
 end
 
 function EOW:CanMove()
-	return Game.Timer() >= myHero.attackData.endTime - myHero.attackData.windDownTime - (Game.Latency() / 2000) and mousePos:DistanceTo(myHero.pos) > EOWMenu.Humanizer.HP:Value() and self.movementsEnabled
+	if mousePos:DistanceTo(myHero.pos) > EOWMenu.Humanizer.HP:Value() and self.movementsEnabled then
+		local WindDown = self:GetWindDown(myHero)
+		if myHero.charName == "Kalista" or myHero.charName == "Graves" then
+			return true
+		end
+		return Game.Timer() >= myHero.attackData.endTime - WindDown - self.ClickDelay - (Game.Latency() / 1000)
+	end
 end
 
 function EOW:Mode()
@@ -664,9 +848,9 @@ function EOW:GetDamage(source, target)
 		if target.maxHealth <= 6 then
 			return 1
 		elseif source.type == Obj_AI_Minion then
-			return (source.totalDamage * (1 + source.bonusDamagePercent) - target.flatDamageReduction)
+			return math.floor(source.totalDamage * (1 + source.bonusDamagePercent) - target.flatDamageReduction)
 		elseif source.type == Obj_AI_Turret and Game.mapID == 11 and self.MinionDamage[target.charName] then
-			return target.maxHealth * self.MinionDamage[target.charName]
+			return math.floor(target.maxHealth * self.MinionDamage[target.charName])
 		end
 	end
 	
@@ -680,19 +864,41 @@ function EOW:GetDamage(source, target)
 	local Turret = Obj_AI_Turret
 	
 	if source.isMe and target.type ~= Turret then
-		if source.charName == "Jhin" and self:GotBuff(source, "jhinpassiveattackbuff") > 0 then
+		
+		local Items = {}
+		for x = ITEM_1, ITEM_7 do
+			local ItemID = source:GetItemData(x).itemID
+			if ItemID > 0 then
+				Items[ItemID] = true
+			end
+		end
+		
+		self.SourceBuffs = {}
+		self.TargetBuffs = {}
+		
+		for x = 0, 63 do
+			local sb = source:GetBuff(x)
+			if sb and sb.name ~= "" and sb.count > 0 then
+				self.SourceBuffs[sb.name] = sb.count
+			end
+			local tb = target:GetBuff(x)
+			if tb and tb.name ~= "" and tb.count > 0 then
+				self.TargetBuffs[tb.name] = tb.count
+			end
+		end
+		
+		if source.charName == "Jhin" and self.SourceBuffs["jhinpassiveattackbuff"] then
 			critChance = 1
 		elseif source.charName == "Pantheon" and source:GetSpellData(_E).level > 0 and self:GetPercentHP(target) < 15 then
 			critChance = 1
-		elseif source.charName == "Ashe" then
+		elseif source.charName == "Ashe" or source.charName == "Graves" then
 			critChance = 0
 		end
 		
 		if critChance == 1 then
-			if self:GetItemSlot(source, 3031) > 0 then
+			if Items[3031] then
 				critDamage = critDamage + 0.5
-			end		
-			
+			end
 			if source.charName == "Yasuo" then
 				critDamage = critDamage - 0.1
 			elseif source.charName == "Jhin" then
@@ -701,26 +907,26 @@ function EOW:GetDamage(source, target)
 			ADDmg = ADDmg * critDamage
 		end	
 		
-		if self:GotBuff(source, "itemstatikshankcharge") == 100 then
+		if self.SourceBuffs["itemstatikshankcharge"] == 100 then
 			--Statikk Shiv
-			if self:GetItemSlot(source, 3087) > 0 then
+			if Items[3087] then
 				if target.type ~= Minion then
 					APDmg = (critChance == 1 and (({50,50,50,50,50,56,61,67,72,77,83,88,84,99,104,110,115,120})[source.levelData.lvl] * critDamage) or ({50,50,50,50,50,56,61,67,72,77,83,88,84,99,104,110,115,120})[source.levelData.lvl])
 				else
 					APDmg = APDmg + (critChance == 1 and (({110,110,110,110,110,123.2,134.2,147.4,158.4,169.4,182.6,193.6,206.8,217.8,228.8,242,253,264})[source.levelData.lvl] * critDamage) or ({110,110,110,110,110,123.2,134.2,147.4,158.4,169.4,182.6,193.6,206.8,217.8,228.8,242,253,264})[source.levelData.lvl])
 				end
 			--RapidFire Cannon
-			elseif self:GetItemSlot(source, 3094) > 0 then
+			elseif Items[3094] then
 				APDmg = APDmg + ({50,50,50,50,50,58,66,75,83,92,100,109,117,126,134,143,151,160})[source.levelData.lvl]
 			--Kircheis Shard
-			elseif self:GetItemSlot(source, 2015) > 0 then
+			elseif Items[2015] then
 				APDmg = APDmg + 40
 			end
 		end		
 		
 		if self.bonusDamageTable[source.charName] then
-			ADDmg, APDmg, TRUEDmg = self.bonusDamageTable[source.charName](source, target, ADDmg, APDmg, TRUEDmg)
-		end	
+			ADDmg, APDmg, TRUEDmg = self.bonusDamageTable[source.charName](source, target, ADDmg, APDmg, TRUEDmg, self.SourceBuffs, self.TargetBuffs)
+		end
 		
 		--BORK
 		--[[if self:GetItemSlot(source, 3153) > 0 then
@@ -728,47 +934,42 @@ function EOW:GetDamage(source, target)
 		end]]
 		
 		--BloodRazor
-		if self:GetItemSlot(myHero, 1419) > 0 or self:GetItemSlot(myHero, 1418) > 0 or self:GetItemSlot(myHero, 1416) > 0 then
+		if Items[1419] or Items[1418] or Items[1416] then
 			ADDmg = ADDmg + (target.type == Minion and math.min(75, target.maxHealth * 0.04) or (target.maxHealth*0.04))
 		end
 		
 		--Runaan's
-		if source.range > 350 and self:GetItemSlot(source, 3085) > 0 then
+		if source.range > 350 and Items[3085] then
 			ADDmg = ADDmg + 15
 		end	
 		
 		--Recurve Bow
-		if self:GetItemSlot(source, 1043) > 0 then
+		if Items[1043] then
 			ADDmg = ADDmg + 15
 		end
 			
 		--Nashor's Tooth	
-		if self:GetItemSlot(source, 3115) > 0 then
+		if Items[3115] then
 			APDmg = APDmg + 15 + (source.ap * 0.15)
 		end
 
 		--Wit's End
-		if self:GetItemSlot(source, 3091) > 0 then
+		if Items[3091] then
 			APDmg = APDmg + 40
 		end
 	
 		--Guinsoo's
-		if self:GetItemSlot(source, 3124) > 0 then
+		if Items[3124] then
 			APDmg = APDmg + 15
 		end
 		
 		--Titanic Hydra
-		if source.range <= 350 and self:GetItemSlot(source, 3748) > 0 then
+		if source.range <= 350 and Items[3748] then
 			ADDmg = ADDmg + 5 + (source.maxHealth * 0.01)
-		end	
-		
-		--RedBuff
-		--[[if self:GotBuff(source, "BlessingoftheLizardElder") > 0 then
-			TRUEDmg = TRUEDmg + 2+(2*source.levelData.lvl)
-		end	]]
+		end
 		
 		--Savagery Mastery
-		if target.type == Minion then
+		--[[if target.type == Minion then
 			TRUEDmg = TRUEDmg + EOWMenu.Farm.Savagery:Value()
 		end
 		
@@ -777,26 +978,33 @@ function EOW:GetDamage(source, target)
 			ADDmg = ADDmg + (ADDmg*0.05)
 			APDmg = APDmg + (APDmg*0.05)
 			TRUEDmg = TRUEDmg + (TRUEDmg*0.05)
-		end		
+		end	]]
 	
 		--add triforce
-		if self:GotBuff(source, "sheen") > 0 or self:GotBuff(source, "itemfrozenfist") > 0 then
+		if self.SourceBuffs["sheen"] then 
+			if Items[3057] then
+				ADDmg = ADDmg + source.baseDamage
+			elseif Items[3078] then
+				ADD = ADD + (2 * source.baseDamage)
+			end
+		end
+		
+		if self.SourceBuffs["itemfrozenfist"] then
 			ADDmg = ADDmg + source.baseDamage
 		end
 			
-		if self:GotBuff(source, "lichbane") > 0 then
+		if self.SourceBuffs["lichbane"] then
 			APDmg = APDmg + 0.5 * source.ap
 		end
 	end
-
-	return self:CalcPhysicalDamage(source, target, ADDmg) + self:CalcMagicalDamage(source, target, APDmg) + TRUEDmg
+	return self:CalcPhysicalDamage(source, target, ADDmg) + self:CalcMagicalDamage(source, target, APDmg) + math.floor(TRUEDmg)
 end
 
 function EOW:CalcPhysicalDamage(source, target, amount)
 	local ArmorPenPercent = source.armorPenPercent
-	local ArmorPenFlat = source.armorPen * 0.4 + (source.armorPen * 0.6) / 18 * target.levelData.lvl
+	local ArmorPenFlat = source.armorPen * (0.6 + (0.4 * (target.levelData.lvl / 18))) 
 	local BonusArmorPen = source.bonusArmorPenPercent
-
+	
 	if source.type == Obj_AI_Minion then
 		ArmorPenPercent = 1
 		ArmorPenFlat = 0
@@ -827,9 +1035,7 @@ function EOW:CalcPhysicalDamage(source, target, amount)
 	elseif (armor * ArmorPenPercent) - (bonusArmor * (1 - BonusArmorPen)) - ArmorPenFlat < 0 then
 		value = 1
 	end
-	
 	return math.max(0, math.floor(value * amount))
-	
 end
 
 function EOW:CalcMagicalDamage(source, target, amount)
@@ -843,12 +1049,11 @@ function EOW:CalcMagicalDamage(source, target, amount)
   end
   
   return math.max(0, math.floor(value * amount))
-  
 end
 
 function EOW:GetItemSlot(unit, id)
 	for i = ITEM_1, ITEM_7 do
-		if unit:GetItemData(unit).itemID == id then
+		if unit:GetItemData(i).itemID == id then
 			return i
 		end
 	end
@@ -864,7 +1069,7 @@ function EOW:GetPercentMP(unit)
 end
 
 function EOW:GotBuff(unit, buff)
-	for i = 1, 63 do
+	for i = 0, 63 do
 		local b = unit:GetBuff(i)
 		if buff == b.name then
 			return b.count
@@ -992,7 +1197,8 @@ function EOW:GetPriority(unit)
 		end
 	end
 	return 1
-end	
+end
 
+Order()
 EOW()
 EOWLoaded = true
