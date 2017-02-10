@@ -40,7 +40,9 @@ function Order:CastSpell(spell, pos)
 			Control.KeyUp(spell)
 			DelayAction(function()
 				Control.SetCursorPos(LastMousePos)
-				self.CastingSpell = false
+				DelayAction(function()
+					self.CastingSpell = false
+				end, 0.001)
 			end, 0.001)
 		end, 0.001)
 	else
@@ -73,7 +75,9 @@ function Order:Attack(unit)
 		DelayAction(function()
 			Control.SetCursorPos(LastMousePos)
 			Control.KeyUp(TCO)
-			self.Attacking = false
+			DelayAction(function()
+				self.Attacking = false
+			end, 0.001)
 		end, 0.001)
 	end, 0.001)
 end
@@ -93,7 +97,9 @@ function Order:Move(pos)
 			DelayAction(function()
 				Control.SetCursorPos(LastMousePos)
 				Control.KeyUp(TCO)
-				self.Moving = false
+				DelayAction(function()
+					self.Moving = false
+				end, 0.001)
 			end, 0.001)
 		end, 0.001)
 	else
@@ -120,9 +126,7 @@ end
 class "EOW"
 
 function EOW:__init()
-	
-	self.ScriptVersion = "0.04"
-	
+
 	self.bonusDamageTable = {
 		["Aatrox"] = function(source, target, ADDmg, APDmg, TRUEDmg, SourceBuffs, TargetBuffs)
 			return ADDmg+ (self:GotBuff(source, "aatroxwonhpowerbuff") > 0 and ({60,95,130,165,200})[source:GetSpellData(_W).level] + source.baseDamage or 0), APDmg, TRUEDmg
@@ -401,6 +405,7 @@ function EOW:__init()
 	["Lucian"] = function() return self:GotBuff(myHero, "") == 0 end,
 	["Vi"] = function() return self:GotBuff(myHero, "") == 0 end,
 	["Varus"] = function() return self:GotBuff(myHero, "") == 0 end,
+	["Xerath"] = function() return self:GotBuff(myHero, "") == 0 end,
 	}
 	
 	self.MeleeChamps = {"Camille", "Ivern", "Aatrox", "Akali", "Alistar", "Amumu", "Blitzcrank", "Braum", "Chogath", "Darius", "Diana", "DrMundo", "Ekko", "Elise", "Evelynn", "Fiora", "Fizz", "Galio", "Gangplank", "Garen", "Gnar", "Gragas", "Hecarim", "Illaoi", "Irelia", "Ivern", "JarvanIV", "Jax", "Jayce", "Kassadin", "Katarina", "Kayle", "KhaZix", "Kled", "LeeSin", "Leona", "Malphite", "Maokai", "MasterYi", "Mordekaiser", "Nasus", "Nautilus", "Nidalee", "Nocturne", "Nunu", "Olaf", "Pantheon", "Poppy", "Rammus", "RekSai", "Renekton", "Rengar", "Riven", "Rumble", "Sejuani", "Shaco", "Shen", "Shyvana", "Singed", "Sion", "Skarner", "TahmKench", "Talon", "Taric", "Trundle", "Tryndamere", "Udyr", "Vi", "Volibear", "Warwick", "MonkeyKing", "XinZhao", "Yasuo", "Yorick", "Zac", "Zed"}
@@ -417,7 +422,7 @@ function EOW:__init()
 	self.ForceTarget = nil
 	self.LastMovement = 0
 	self.LastAttack = 0
-	self.ClickDelay = 0.002
+	self.ClickDelay = 0.003
 	
 	Callback.Add("Tick", function() self:Tick() end)
 	Callback.Add("Draw", function() self:Draw() end)
@@ -711,7 +716,7 @@ function EOW:PredictHealth(unit, delta)
 	
 	local Damage = 0
 	local Handle = unit.handle
-	delta = delta - (Game.Latency() / 1000) - (self.ClickDelay/2)
+	delta = delta - (Game.Latency() / 1000) - (self.ClickDelay)
 	
 	for x = 1, Game.MinionCount() do
 		local source = Game.Minion(x)
