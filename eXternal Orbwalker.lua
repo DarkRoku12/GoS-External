@@ -982,7 +982,7 @@ function EOW:GetDamage(source, target)
 			if Items[3057] then
 				ADDmg = ADDmg + source.baseDamage
 			elseif Items[3078] then
-				ADD = ADD + (2 * source.baseDamage)
+				ADDmg = ADDmg + (2 * source.baseDamage)
 			end
 		end
 		
