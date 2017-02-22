@@ -1196,6 +1196,6 @@ function EOW:GetPriority(unit)
 	return 1
 end
 
-Order()
-EOW()
+Order = Order()
+EOW = EOW()
 EOWLoaded = true
