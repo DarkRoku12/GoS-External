@@ -103,7 +103,7 @@ function Jinx:__init()
 	self.Menu:MenuElement({id = "Harass", name = "Harass", type = MENU})
 	self.Menu.Harass:MenuElement({id = "HQ", name = "Use Q", value = true})
 	self.Menu.Harass:MenuElement({id = "HW", name = "Use W", value = true})
-	self.Menu.Harass:MenuElement({id = "CMM", name = "Min Mana To Harass", value = 50, min = 0, max = 100, step = 1})
+	self.Menu.Harass:MenuElement({id = "HMM", name = "Min Mana To Harass", value = 50, min = 0, max = 100, step = 1})
 	
 	self.Menu:MenuElement({id = "Killsteal", name = "Killsteal", type = MENU})
 	self.Menu.Killsteal:MenuElement({id = "KSW", name = "Killsteal W", value = true})
