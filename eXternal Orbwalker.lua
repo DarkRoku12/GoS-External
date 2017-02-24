@@ -467,8 +467,11 @@ function EOW:MakeMenu()
 	EOWMenu.TS:MenuElement({id = "TSC", name = "Target Selector", value = 1, drop = {"Easiest To Kill", "Closest To You", "Closest To Mouse", "Highest AD", "Highest AP", "Highest HP", "Lowest HP", "Priority"}})
 	local Delay = Game.Timer() < 30 and 30 - Game.Timer() or 0
 	DelayAction(function()
-		for _, i in pairs(self:GetEnemyHeroes()) do
-			EOWMenu.TS:MenuElement({id = i.networkID, name = "Priority: "..i.charName, value = self:GetPriority(i), min = 1, max = 5, step = 1, leftIcon = "http://ddragon.leagueoflegends.com/cdn/6.24.1/img/champion/"..i.charName..".png"})
+		for x = 1, Game.HeroCount() do
+			local i = Game.Hero(x)
+			if i and not i.name:lower():find("dummy") and i.team ~= myHero.team then
+				EOWMenu.TS:MenuElement({id = i.networkID, name = "Priority: "..i.charName, value = self:GetPriority(i), min = 1, max = 5, step = 1, leftIcon = "http://ddragon.leagueoflegends.com/cdn/6.24.1/img/champion/"..i.charName..".png"})
+			end
 		end
 	end, Delay)
 	
