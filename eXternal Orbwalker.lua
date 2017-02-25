@@ -1,3 +1,8 @@
+if EOWLoaded then
+	return
+end
+EOWLoaded = true
+
 class "Order"
 
 function Order:__init()
@@ -1201,4 +1206,3 @@ end
 
 _G.Order = Order()
 _G.EOW = EOW()
-EOWLoaded = true
