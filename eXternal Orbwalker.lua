@@ -1114,8 +1114,8 @@ function EOW:ClosestM()
 	local c = math.huge
 	local t = nil
 	for _, e in pairs(self:GetEnemyHeroes()) do
-		if self:CanOrb(e) and GetDistance(e, GetMousePos()) < c then
-			c = GetDistance(e, GetMousePos())
+		if self:CanOrb(e) and mousePos:DistanceTo(e.pos) < c then
+			c = mousePos:DistanceTo(e.pos)
 			t = e
 		end
 	end
