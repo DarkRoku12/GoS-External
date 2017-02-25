@@ -785,7 +785,7 @@ function EOW:PredictHealth(unit, delta)
 end
 
 function EOW:CanAttack()
-	if Game.Timer() >= myHero.attackData.endTime - (self.ClickDelay) - (Game.Latency()/1000) and self.attacksEnabled then
+	if Game.Timer() >= myHero.attackData.endTime - (self.ClickDelay) - (Game.Latency()/1000) - 0.15 and self.attacksEnabled then
 		if myHero.charName == "Graves" or myHero.charName == "Jhin" then
 			return myHero.hudAmmo > 0
 		end
