@@ -1,7 +1,9 @@
 class "Common"
 
 function Common:__init()
-
+	
+	require("MapPosition")
+	
 	self.ImmobileBuffs = {
 		[5] = true,
 		[11] = true,
@@ -45,8 +47,15 @@ function Common:IsImmobile(unit)
 	return false
 end
 
+function Common:GetDistanceSqr(Pos1, Pos2)
+	local Pos2 = Pos2 or myHero.pos
+	local dx = Pos1.x - Pos2.x
+	local dz = (Pos1.z or Pos1.y) - (Pos2.z or Pos2.y)
+	return dx^2 + dz^2
+end
+
 function Common:GetDistance(Pos1, Pos2)
-	return math.sqrt((Pos2.x - Pos1.x)^2 + (Pos2.y - Pos1.y)^2 + (Pos2.z - Pos1.z)^2)
+	return math.sqrt(self:GetDistanceSqr(Pos1, Pos2))
 end
 
 function Common:GetPercentHP(unit)
@@ -90,6 +99,76 @@ function Common:EnemiesAround(pos, range)
 	return C
 end
 
+function Common:VectorPointProjectionOnLineSegment(v1, v2, v)
+	local cx, cy, ax, ay, bx, by = v.x, (v.z or v.y), v1.x, (v1.z or v1.y), v2.x, (v2.z or v2.y)
+    local rL = ((cx - ax) * (bx - ax) + (cy - ay) * (by - ay)) / ((bx - ax) ^ 2 + (by - ay) ^ 2)
+    local pointLine = { x = ax + rL * (bx - ax), y = ay + rL * (by - ay) }
+    local rS = rL < 0 and 0 or (rL > 1 and 1 or rL)
+    local isOnSegment = rS == rL
+    local pointSegment = isOnSegment and pointLine or {x = ax + rS * (bx - ax), y = ay + rS * (by - ay)}
+	return pointSegment, pointLine, isOnSegment
+end
+
+function Common:GetPrediction(unit, spellData)
+	local pos = unit.posTo
+	local unitpos = unit.pos
+	if pos == unitpos then
+		return unitpos
+	end
+	local speed = spellData.speed
+	local delay = spellData.delay
+	local delay = delay + (Game.Latency() * 0.001) + (EOW.ClickDelay / 2)
+	local WalkDistance = (((Common:GetDistance(myHero.pos, unitpos) / speed) + delay) * unit.ms)
+	local Pred = unitpos + (pos - unitpos):Normalized() * WalkDistance
+	local LineSeg = LineSegment(Point(pos), Point(unitpos))
+	if MapPosition:intersectsWall(LineSeg) then
+		Pred = unitpos + (unit.dir):Normalized() * WalkDistance
+	end
+	if Common:GetDistance(myHero.pos, Pred) > spellData.range then
+		return false
+	end
+	return Pred
+end
+
+function Common:GetHeroCollision(StartPos, EndPos, Width, Target)
+	local Count = 0
+	for i = 1, Game.HeroCount() do
+		local h = Game.Hero(i)
+		if h and h ~= Target and h.isEnemy and Common:ValidTarget(h) then
+			local w = Width + (h.boundingRadius / 2)
+			pointSegment, pointLine, isOnSegment = self:VectorPointProjectionOnLineSegment(StartPos, EndPos, h.pos)
+			if isOnSegment and self:GetDistanceSqr(pointSegment, h.pos) < w^2 and self:GetDistanceSqr(StartPos, EndPos) > self:GetDistanceSqr(StartPos, h.pos) then
+				Count = Count + 1
+			end
+		end
+	end
+	return Count
+end
+
+function Common:GetMinionCollision(StartPos, EndPos, Width)
+	local Count = 0
+	for i = 1, Game.MinionCount() do
+		local m = Game.Minion(i)
+		if m and m.isEnemy and Common:ValidTarget(m) then
+			local w = Width + (m.boundingRadius / 2)
+			pointSegment, pointLine, isOnSegment = self:VectorPointProjectionOnLineSegment(StartPos, EndPos, m.pos)
+			if isOnSegment and self:GetDistanceSqr(pointSegment, m.pos) < w^2 and self:GetDistanceSqr(StartPos, EndPos) > self:GetDistanceSqr(StartPos, m.pos) then
+				Count = Count + 1
+			end
+		end
+	end
+	return Count
+end
+
+function Common:GetItemSlot(unit, itemID)
+	for i = ITEM_1, ITEM_7 do
+		if unit:GetItemData(i).itemID == id then
+			return i
+		end
+	end
+	return 0
+end
+
 class "Jinx"
 
 function Jinx:__init()
@@ -103,7 +182,7 @@ function Jinx:__init()
 	self.Menu:MenuElement({id = "Harass", name = "Harass", type = MENU})
 	self.Menu.Harass:MenuElement({id = "HQ", name = "Use Q", value = true})
 	self.Menu.Harass:MenuElement({id = "HW", name = "Use W", value = true})
-	self.Menu.Harass:MenuElement({id = "HMM", name = "Min Mana To Harass", value = 50, min = 0, max = 100, step = 1})
+	self.Menu.Harass:MenuElement({id = "CMM", name = "Min Mana To Harass", value = 50, min = 0, max = 100, step = 1})
 	
 	self.Menu:MenuElement({id = "Killsteal", name = "Killsteal", type = MENU})
 	self.Menu.Killsteal:MenuElement({id = "KSW", name = "Killsteal W", value = true})
@@ -277,10 +356,10 @@ function Jinx:Killsteal()
 	for i = 1, Game.HeroCount() do
 		local e = Game.Hero(i)
 		if e and e.team ~= myHero.team then
-			if self.Menu.Killsteal.KSW:Value() and Common:Ready(_W) and Common:GetDistance(myHero.pos, e.pos) > myHero.range and Common:ValidTarget(e, self.Spells[1].range) and self.Damage[1](e) > e.health then
+			if self.Menu.Killsteal.KSW:Value() and Common:Ready(_W) and Common:GetDistance(myHero.pos, e.pos) > myHero.range and Common:ValidTarget(e, self.Spells[1].range) and self.Damage[1](e) >= e.health + e.shieldAD then
 				self:CastW(e)
 				break
-			elseif self.Menu.Killsteal.KSR:Value() and Common:Ready(_R) and Common:GetDistance(myHero.pos, e.pos) > myHero.range and Common:ValidTarget(e, self.Menu.Killsteal.KSRR:Value()) and self.Damage[3](e) > e.health then
+			elseif self.Menu.Killsteal.KSR:Value() and Common:Ready(_R) and Common:GetDistance(myHero.pos, e.pos) > myHero.range and Common:ValidTarget(e, self.Menu.Killsteal.KSRR:Value()) and self.Damage[3](e) >= e.health + e.shieldAD then
 				self:CastR(e)
 				break
 			end
@@ -293,9 +372,8 @@ function Jinx:GotMinigun()
 end
 
 function Jinx:CastW(unit)
-	local Pred = unit:GetPrediction(self.Spells[1].speed, self.Spells[1].delay)
-	local Col = unit:GetCollision(self.Spells[1].width, self.Spells[1].speed, self.Spells[1].delay)
-	if Pred and Col == 0 then
+	local Pred = Common:GetPrediction(unit, self.Spells[1])
+	if Pred and Common:GetHeroCollision(myHero.pos, Pred, self.Spells[1].width, unit) == 0 and Common:GetMinionCollision(myHero.pos, Pred, self.Spells[1].width) == 0 then
 		Pred = Vector(Pred)
 		Pred = myHero.pos + (Pred - myHero.pos):Normalized() * 300
 		Order:CastSpell(_W, Pred)
@@ -304,8 +382,9 @@ end
 
 function Jinx:CastR(unit)
 	local Speed =  unit.distance > 1350 and (2295000 + (unit.distance - 1350) * 2200) / unit.distance or 1700
-	local Pred = unit:GetPrediction(Speed, self.Spells[3].delay)
-	if Pred then
+	self.Spells[3].speed = Speed
+	local Pred = Common:GetPrediction(unit, self.Spells[3])
+	if Pred and Common:GetHeroCollision(myHero.pos, Pred, self.Spells[3].width, unit) == 0 then
 		Pred = Vector(Pred)
 		Pred = myHero.pos + (Pred - myHero.pos):Normalized() * 300
 		Order:CastSpell(_R, Pred)
@@ -318,6 +397,231 @@ end
 
 function Jinx:RocketRange()
 	return 525 + myHero.boundingRadius + (50 + (25 * myHero:GetSpellData(_Q).level))
+end
+
+class "Ezreal"
+
+function Ezreal:__init()
+	
+	self.Spells = {
+		[0] = {delay = 0.25, speed = 2000, range = 1200, width = 60},
+		[1] = {delay = 0.25, speed = 1600, range = 1050, width = 80},
+		[2] = {delay = 0.25, speed = math.huge, range = 450, width = 1},
+		[3] = {delay = 1, speed = 2000, range = math.huge, width = 160}
+	}
+	
+	self.Damage = {
+		[0] = function(unit)
+			local BaseDamage = 15 + (20 * myHero:GetSpellData(_Q).level) + (myHero.ap * 0.4) + (myHero.totalDamage * 1.1)
+			local BonusPhysicalDamage = 0
+			local BonusMagicalDamage = 0
+			local Sheen = nil
+			local TriForce = nil
+			local Lichbane = nil
+			local IceBorn = nil
+			for i = ITEM_1, ITEM_7 do
+				local ItemID = myHero:GetItemData(i).itemID
+				if ItemID == 3057 then
+					Sheen = i
+				elseif ItemID == 3100 then
+					Lichbane = i
+				elseif ItemID == 3078 then
+					TriForce = i
+				elseif ItemID == 3025 then
+					IceBorn = i
+				end
+			end
+			if Sheen then
+				if Game.CanUseSpell(Sheen) ~= ONCOOLDOWN or Common:GotBuff(myHero, "sheen") > 0 then
+					BonusPhysicalDamage = myHero.baseDamage
+				end
+			elseif TriForce then
+				if Game.CanUseSpell(TriForce) ~= ONCOOLDOWN or Common:GotBuff(myHero, "sheen") > 0 then
+					BonusPhysicalDamage = myHero.baseDamage * 2
+				end
+			elseif IceBorn then
+				if Game.CanUseSpell(IceBorn) ~= ONCOOLDOWN or Common:GotBuff(myHero, "itemfrozenfist") > 0 then
+					BonusPhysicalDamage = myHero.baseDamage
+				end
+			elseif Lichbane then
+				if Game.CanUseSpell(Lichbane) ~= ONCOOLDOWN or Common:GotBuff(myHero, "lichbane") > 0 then
+					BonusMagicalDamage = (myHero.baseDamage * 0.75) + (myHero.ap * 0.5)
+				end
+			end
+			return EOW:CalcPhysicalDamage(myHero, unit, BaseDamage + BonusMagicalDamage + BonusPhysicalDamage)
+		end,
+		[1] = function(unit)
+			return EOW:CalcMagicalDamage(myHero, unit, 25 + (45 * myHero:GetSpellData(_W).level) + (myHero.ap + 0.8))
+		end,
+		[3] = function(unit)
+			local BaseDamage = 200 + (150 * myHero:GetSpellData(_R).level) + (myHero.bonusDamage) + (myHero.ap * 0.9)
+			local Reduction = math.min(Common:GetHeroCollision(myHero.pos, unit.pos, self.Spells[3].width, unit) + Common:GetMinionCollision(myHero.pos, unit.pos, self.Spells[3].width), 7)
+			BaseDamage = BaseDamage * ((10 - Reduction) / 10)
+			return EOW:CalcMagicalDamage(myHero, unit, BaseDamage)
+		end
+	}
+	
+	self.Menu = MenuElement({id = "Ezreal", name = "Ezreal", type = MENU, leftIcon = "http://ddragon.leagueoflegends.com/cdn/6.24.1/img/champion/"..myHero.charName..".png"})
+	
+	self.Menu:MenuElement({id = "Combo", name = "Combo", type = MENU})
+	self.Menu.Combo:MenuElement({id = "CQ", name = "Use Q", value = true})
+	self.Menu.Combo:MenuElement({id = "CW", name = "Use W", value = true})
+	self.Menu.Combo:MenuElement({id = "CR", name = "Use R", value = true})
+	self.Menu.Combo:MenuElement({id = "Items", name = "Items", type = MENU})
+	self.Menu.Combo.Items:MenuElement({id = "BORK", name = "Blade of the Ruined King", value = true})
+	self.Menu.Combo.Items:MenuElement({id = "BORKMYHP", name = "Use If My HP < x%", value = 70, min = 1, max = 100, step = 1})
+	self.Menu.Combo.Items:MenuElement({id = "BORKEHP", name = "Use If Target HP < x%", value = 70, min = 1, max = 100, step = 1})
+	self.Menu.Combo.Items:MenuElement({id = "Bilge", name = "Bilgewater Cutlass", value = true})
+	self.Menu.Combo.Items:MenuElement({id = "BilgeMYHP", name = "Use If My HP < x%", value = 70, min = 1, max = 100, step = 1})
+	self.Menu.Combo.Items:MenuElement({id = "BilgeEHP", name = "Use If Target HP < x%", value = 70, min = 1, max = 100, step = 1})
+	
+	self.Menu:MenuElement({id = "Harass", name = "Harass", type = MENU})
+	self.Menu.Harass:MenuElement({id = "HQ", name = "Use Q", value = true})
+	self.Menu.Harass:MenuElement({id = "HW", name = "Use W", value = true})
+	self.Menu.Harass:MenuElement({id = "HMM", name = "Min Mana To Harass", value = 50, min = 1, max = 100, step = 1})
+	
+	self.Menu:MenuElement({id = "Killsteal", name = "Killsteal", type = MENU})
+	self.Menu.Killsteal:MenuElement({id = "Enabled", name = "Enabled", value = true})
+	self.Menu.Killsteal:MenuElement({id = "KSQ", name = "Use Q", value = true})
+	self.Menu.Killsteal:MenuElement({id = "KSW", name = "Use W", value = true})
+	self.Menu.Killsteal:MenuElement({id = "KSR", name = "Use R", value = true})
+	self.Menu.Killsteal:MenuElement({id = "KSRC", name = "R Max Range", value = 2000, min = 300, max = 25000, step = 100})
+	
+	self.Menu:MenuElement({id = "Draw", name = "Drawings", type = MENU})
+	self.Menu.Draw:MenuElement({id = "DA", name = "Disable All Drawings", value = false})
+	self.str = {[0] = "Q", [1] = "W", [2] = "E", [3] = "R"}
+	for i = 0, 2 do
+		self.Menu.Draw:MenuElement({id = "D"..self.str[i], name = "Draw "..self.str[i].." Range", type = MENU})
+		self.Menu.Draw["D"..self.str[i]]:MenuElement({id = "Enabled", name = "Enabled", value = true})
+		self.Menu.Draw["D"..self.str[i]]:MenuElement({id = "Width", name = "Width", value = 2, min = 1, max = 5, step = 1})
+		self.Menu.Draw["D"..self.str[i]]:MenuElement({id = "Color", name = "Color", color = Draw.Color(255, 255, 255, 255)})
+	end
+	
+	self.Menu:MenuElement({id = "Misc", name = "Misc", type = MENU})
+	
+	self.Target = nil
+	
+	Callback.Add("Tick", function() self:Tick() end)
+	Callback.Add("Draw", function() self:Draw() end)
+end
+
+function Ezreal:Tick()
+	self.Target = EOW:GetTarget() or Common:GetTarget()
+	
+	if EOW:Mode() == "Combo" then
+		self:Combo()
+	elseif EOW:Mode() == "Harass" then
+		self:Harass()
+	end
+	
+	if self.Menu.Killsteal.Enabled:Value() then
+		self:Killsteal()
+	end
+end
+
+function Ezreal:Draw()
+	if self.Menu.Draw.DA:Value() then
+		return
+	end
+	for i = 0, 2 do
+		local Str = self.str[i]
+		if self.Menu.Draw["D"..Str].Enabled:Value() then
+			Draw.Circle(myHero.pos, self.Spells[i].range, self.Menu.Draw["D"..Str].Width:Value(), self.Menu.Draw["D"..Str].Color:Value())
+		end
+	end
+end
+
+function Ezreal:Combo()
+	if myHero.attackData.state == STATE_WINDUP or not self.Target then
+		return
+	end
+	
+	if self.Menu.Combo.CQ:Value() and Common:Ready(_Q) and Common:ValidTarget(self.Target, self.Spells[0].range) then
+		self:CastQ(self.Target)
+	end
+	
+	if self.Menu.Combo.CW:Value() and Common:Ready(_W) and Common:ValidTarget(self.Target, self.Spells[1].range) then
+		self:CastW(self.Target)
+	end
+	
+	if self.Menu.Combo.CR:Value() and Common:Ready(_R) and Common:ValidTarget(self.Target, 2000) then
+		if Common:GetPercentHP(self.Target) <= 50 and Common:GetDistance(myHero.pos, self.Target.pos) > 800 and Common:EnemiesAround(myHero.pos, 800) <= 1 then
+			self:CastR(self.Target)
+		end
+	end
+	
+	if self.Menu.Combo.Items.BORK:Value() then
+		local Bork = Common:GetItemSlot(myHero, 3153)
+		if Bork > 0 and Common:Ready(Bork) and Common:ValidTarget(self.Target, 550) and Common:GetPercentHP(myHero) <= self.Menu.Combo.Items.BORKMYHP:Value() and Common:GetPercentHP(self.Target) <= self.Menu.Combo.Items.BORKEHP:Value() then
+			Order:CastSpell(Bork, self.Target.pos)
+		end
+	end
+	
+	if self.Menu.Combo.Items.Bilge:Value() then
+		local Bilge = Common:GetItemSlot(myHero, 3144)
+		if Bilge > 0 and Common:Ready(Bilge) and Common:ValidTarget(self.Target, 550) and Common:GetPercentHP(myHero) <= self.Menu.Combo.Items.BilgeMYHP:Value() and Common:GetPercentHP(self.Target) <= self.Menu.Combo.Items.BilgeEHP:Value() then
+			Order:CastSpell(Bork, self.Target.pos)
+		end
+	end
+end
+
+function Ezreal:Harass()
+	if myHero.attackData.state == STATE_WINDUP or not self.Target or Common:GetPercentMP(myHero) < self.Menu.Harass.HMM:Value() then
+		return
+	end
+	
+	if self.Menu.Harass.HQ:Value() and Common:Ready(_Q) and Common:ValidTarget(self.Target, self.Spells[0].range) then
+		self:CastQ(self.Target)
+	end
+	
+	if self.Menu.Harass.HW:Value() and Common:Ready(_W) and Common:ValidTarget(self.Target, self.Spells[1].range) then
+		self:CastW(self.Target)
+	end
+end
+
+function Ezreal:Killsteal()
+	if myHero.attackData.state == STATE_WINDUP then
+		return
+	end
+	for i = 1, Game.HeroCount() do
+		local h = Game.Hero(i)
+		if h and h.isEnemy then
+			if self.Menu.Killsteal.KSQ:Value() and Common:Ready(_Q) and Common:ValidTarget(h, self.Spells[0].range) and self.Damage[0](h) >= h.health + h.shieldAD then
+				self:CastQ(h)
+			elseif self.Menu.Killsteal.KSW:Value() and Common:Ready(_W) and Common:ValidTarget(h, self.Spells[1].range) and self.Damage[1](h) >= h.health + h.shieldAP then
+				self:CastW(h)
+			elseif self.Menu.Killsteal.KSR:Value() and Common:Ready(_R) and Common:ValidTarget(h, self.Menu.Killsteal.KSRC:Value()) and Common:GetDistance(myHero.pos, h.pos) > myHero.range and self.Damage[3](h) >= h.health + h.shieldAD then
+				self:CastR(h)
+			end
+		end
+	end
+end
+
+function Ezreal:CastQ(unit)
+	local Pred = Common:GetPrediction(unit, self.Spells[0])
+	if Pred and Common:GetHeroCollision(myHero.pos, Pred, self.Spells[0].width, unit) == 0 and Common:GetMinionCollision(myHero.pos, Pred, self.Spells[0].width) == 0 then
+		Pred = Vector(Pred)
+		Pred = myHero.pos + (Pred - myHero.pos):Normalized() * 300
+		Order:CastSpell(_Q, Pred)
+	end
+end
+
+function Ezreal:CastW(unit)
+	local Pred = Common:GetPrediction(unit, self.Spells[1])
+	if Pred then
+		Pred = Vector(Pred)
+		Pred = myHero.pos + (Pred - myHero.pos):Normalized() * 300
+		Order:CastSpell(_W, Pred)
+	end
+end
+
+function Ezreal:CastR(unit)
+	local Pred = Common:GetPrediction(unit, self.Spells[3])
+	if Pred then
+		Pred = Vector(Pred)
+		Pred = myHero.pos + (Pred - myHero.pos):Normalized() * 300
+		Order:CastSpell(_R, Pred)
+	end
 end
 
 Callback.Add("Load", function()
