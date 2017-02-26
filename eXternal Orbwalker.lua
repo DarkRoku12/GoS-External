@@ -14,19 +14,19 @@ function Order:__init()
 	self.BlockMovement = false
 	self.BlockSpell = false
 	SpellToKey = {
-	[_Q] = function() return HK_Q end, 
-	[_W] = function() return HK_W end, 
-	[_E] = function() return HK_E end, 
-	[_R] = function() return HK_R end, 
-	[SUMMONER_1] = function() return HK_SUMMONER_1 end, 
-	[SUMMONER_2] = function() return HK_SUMMONER_2 end,
-	[ITEM_1] = function() return HK_ITEM_1 end,
-	[ITEM_2] = function() return HK_ITEM_2 end,
-	[ITEM_3] = function() return HK_ITEM_3 end,
-	[ITEM_4] = function() return HK_ITEM_4 end,
-	[ITEM_5] = function() return HK_ITEM_5 end,
-	[ITEM_6] = function() return HK_ITEM_6 end,
-	[ITEM_7] = function() return HK_ITEM_7 end
+	[_Q] = HK_Q, 
+	[_W] = HK_W, 
+	[_E] = HK_E, 
+	[_R] = HK_R, 
+	[SUMMONER_1] = HK_SUMMONER_1, 
+	[SUMMONER_2] = HK_SUMMONER_2,
+	[ITEM_1] = HK_ITEM_1,
+	[ITEM_2] = HK_ITEM_2,
+	[ITEM_3] = HK_ITEM_3,
+	[ITEM_4] = HK_ITEM_4,
+	[ITEM_5] = HK_ITEM_5,
+	[ITEM_6] = HK_ITEM_6,
+	[ITEM_7] = HK_ITEM_7
 	}
 
 end
