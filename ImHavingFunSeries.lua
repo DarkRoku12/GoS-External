@@ -135,7 +135,7 @@ function Common:GetHeroCollision(StartPos, EndPos, Width, Target)
 	for i = 1, Game.HeroCount() do
 		local h = Game.Hero(i)
 		if h and h ~= Target and h.isEnemy and Common:ValidTarget(h) then
-			local w = Width + (h.boundingRadius / 2)
+			local w = Width + h.boundingRadius
 			pointSegment, pointLine, isOnSegment = self:VectorPointProjectionOnLineSegment(StartPos, EndPos, h.pos)
 			if isOnSegment and self:GetDistanceSqr(pointSegment, h.pos) < w^2 and self:GetDistanceSqr(StartPos, EndPos) > self:GetDistanceSqr(StartPos, h.pos) then
 				Count = Count + 1
@@ -145,12 +145,12 @@ function Common:GetHeroCollision(StartPos, EndPos, Width, Target)
 	return Count
 end
 
-function Common:GetMinionCollision(StartPos, EndPos, Width)
+function Common:GetMinionCollision(StartPos, EndPos, Width, Target)
 	local Count = 0
 	for i = 1, Game.MinionCount() do
 		local m = Game.Minion(i)
-		if m and m.isEnemy and Common:ValidTarget(m) then
-			local w = Width + (m.boundingRadius / 2)
+		if m and m ~= Target and not m.isAlly and Common:ValidTarget(m) then
+			local w = Width + m.boundingRadius
 			pointSegment, pointLine, isOnSegment = self:VectorPointProjectionOnLineSegment(StartPos, EndPos, m.pos)
 			if isOnSegment and self:GetDistanceSqr(pointSegment, m.pos) < w^2 and self:GetDistanceSqr(StartPos, EndPos) > self:GetDistanceSqr(StartPos, m.pos) then
 				Count = Count + 1
@@ -162,7 +162,7 @@ end
 
 function Common:GetItemSlot(unit, itemID)
 	for i = ITEM_1, ITEM_7 do
-		if unit:GetItemData(i).itemID == id then
+		if unit:GetItemData(i).itemID == itemID then
 			return i
 		end
 	end
@@ -215,7 +215,6 @@ function Jinx:__init()
 	self.Menu.Draw.DE:MenuElement({id = "Enabled", name = "Enabled", value = true})
 	self.Menu.Draw.DE:MenuElement({id = "Width", name = "Width", value = 2, min = 1, max = 5, step = 1})
 	self.Menu.Draw.DE:MenuElement({id = "Color", name = "Color", color = Draw.Color(255, 255, 255, 255)})
-	
 	
 	self.Target = nil
 	
@@ -373,7 +372,7 @@ end
 
 function Jinx:CastW(unit)
 	local Pred = Common:GetPrediction(unit, self.Spells[1])
-	if Pred and Common:GetHeroCollision(myHero.pos, Pred, self.Spells[1].width, unit) == 0 and Common:GetMinionCollision(myHero.pos, Pred, self.Spells[1].width) == 0 then
+	if Pred and Common:GetHeroCollision(myHero.pos, Pred, self.Spells[1].width, unit) == 0 and Common:GetMinionCollision(myHero.pos, Pred, self.Spells[1].width, unit) == 0 then
 		Pred = Vector(Pred)
 		Pred = myHero.pos + (Pred - myHero.pos):Normalized() * 300
 		Order:CastSpell(_W, Pred)
@@ -455,7 +454,7 @@ function Ezreal:__init()
 		end,
 		[3] = function(unit)
 			local BaseDamage = 200 + (150 * myHero:GetSpellData(_R).level) + (myHero.bonusDamage) + (myHero.ap * 0.9)
-			local Reduction = math.min(Common:GetHeroCollision(myHero.pos, unit.pos, self.Spells[3].width, unit) + Common:GetMinionCollision(myHero.pos, unit.pos, self.Spells[3].width), 7)
+			local Reduction = math.min(Common:GetHeroCollision(myHero.pos, unit.pos, self.Spells[3].width, unit) + Common:GetMinionCollision(myHero.pos, unit.pos, self.Spells[3].width, unit), 7)
 			BaseDamage = BaseDamage * ((10 - Reduction) / 10)
 			return EOW:CalcMagicalDamage(myHero, unit, BaseDamage)
 		end
@@ -560,7 +559,7 @@ function Ezreal:Combo()
 	if self.Menu.Combo.Items.Bilge:Value() then
 		local Bilge = Common:GetItemSlot(myHero, 3144)
 		if Bilge > 0 and Common:Ready(Bilge) and Common:ValidTarget(self.Target, 550) and Common:GetPercentHP(myHero) <= self.Menu.Combo.Items.BilgeMYHP:Value() and Common:GetPercentHP(self.Target) <= self.Menu.Combo.Items.BilgeEHP:Value() then
-			Order:CastSpell(Bork, self.Target.pos)
+			Order:CastSpell(Bilge, self.Target.pos)
 		end
 	end
 end
@@ -599,7 +598,7 @@ end
 
 function Ezreal:CastQ(unit)
 	local Pred = Common:GetPrediction(unit, self.Spells[0])
-	if Pred and Common:GetHeroCollision(myHero.pos, Pred, self.Spells[0].width, unit) == 0 and Common:GetMinionCollision(myHero.pos, Pred, self.Spells[0].width) == 0 then
+	if Pred and Common:GetHeroCollision(myHero.pos, Pred, self.Spells[0].width, unit) == 0 and Common:GetMinionCollision(myHero.pos, Pred, self.Spells[0].width, unit) == 0 then
 		Pred = Vector(Pred)
 		Pred = myHero.pos + (Pred - myHero.pos):Normalized() * 500
 		Order:CastSpell(_Q, Pred)
