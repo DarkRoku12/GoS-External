@@ -601,7 +601,7 @@ function Ezreal:CastQ(unit)
 	local Pred = Common:GetPrediction(unit, self.Spells[0])
 	if Pred and Common:GetHeroCollision(myHero.pos, Pred, self.Spells[0].width, unit) == 0 and Common:GetMinionCollision(myHero.pos, Pred, self.Spells[0].width) == 0 then
 		Pred = Vector(Pred)
-		Pred = myHero.pos + (Pred - myHero.pos):Normalized() * 300
+		Pred = myHero.pos + (Pred - myHero.pos):Normalized() * 500
 		Order:CastSpell(_Q, Pred)
 	end
 end
@@ -610,7 +610,7 @@ function Ezreal:CastW(unit)
 	local Pred = Common:GetPrediction(unit, self.Spells[1])
 	if Pred then
 		Pred = Vector(Pred)
-		Pred = myHero.pos + (Pred - myHero.pos):Normalized() * 300
+		Pred = myHero.pos + (Pred - myHero.pos):Normalized() * 500
 		Order:CastSpell(_W, Pred)
 	end
 end
@@ -619,7 +619,7 @@ function Ezreal:CastR(unit)
 	local Pred = Common:GetPrediction(unit, self.Spells[3])
 	if Pred then
 		Pred = Vector(Pred)
-		Pred = myHero.pos + (Pred - myHero.pos):Normalized() * 300
+		Pred = myHero.pos + (Pred - myHero.pos):Normalized() * 500
 		Order:CastSpell(_R, Pred)
 	end
 end
