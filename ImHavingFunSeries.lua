@@ -2,6 +2,10 @@ class "Common"
 
 function Common:__init()
 	
+	self.Ally = myHero.team
+	self.Enemy = 300 - myHero.team
+	self.Neural = 300
+	
 	require("MapPosition")
 	
 	self.str = {[0] = "Q", [1] = "W", [2] = "E", [3] = "R"}
@@ -47,6 +51,74 @@ function Common:IsImmobile(unit)
 		end
 	end
 	return false
+end
+
+function Common:GetMinionByHandle(handle)
+	for i = 1, Game.MinionCount() do
+		local m = Game.Minion(i)
+		if m.handle == handle then
+			return m
+		end
+	end
+end
+
+function Common:MinionsAround(pos, range, team)
+	local Count = 0
+	for i = 1, Game.MinionCount() do
+		local m = Game.Minion(i)
+		if m and m.team == team and not m.dead and Common:GetDistance(pos, m.pos) <= range then
+			Count = Count + 1
+		end
+	end
+	return Count
+end
+
+function Common:MinionsOnLine(startpos, endpos, width, team)
+	local Count = 0
+	for i = 1, Game.MinionCount() do
+		local m = Game.Minion(i)
+		if m and m.team == team and not m.dead then
+			local w = width + m.boundingRadius
+			local pointSegment, pointLine, isOnSegment = self:VectorPointProjectionOnLineSegment(startpos, endpos, m.pos)
+			if isOnSegment and self:GetDistanceSqr(pointSegment, m.pos) < w^2 and self:GetDistanceSqr(startpos, endpos) > self:GetDistanceSqr(startpos, m.pos) then
+				Count = Count + 1
+			end
+		end
+	end
+	return Count
+end
+
+function Common:GetBestCircularFarmPos(range, radius)
+	local BestPos = nil
+	local MostHit = 0
+	for i = 1, Game.MinionCount() do
+		local m = Game.Minion(i)
+		if m and m.isEnemy and not m.dead and self:GetDistance(m.pos, myHero.pos) <= range then
+			local Count = self:MinionsAround(m.pos, radius, self.Enemy)
+			if Count > MostHit then
+				MostHit = Count
+				BestPos = m.pos
+			end
+		end
+	end
+	return BestPos, MostHit
+end
+
+function Common:GetBestLinearFarmPos(range, width)
+	local BestPos = nil
+	local MostHit = 0
+	for i = 1, Game.MinionCount() do
+		local m = Game.Minion(i)
+		if m and m.isEnemy and not m.dead then
+			local EndPos = myHero.pos + (m.pos - myHero.pos):Normalized() * range
+			local Count = self:MinionsOnLine(myHero.pos, EndPos, width, self.Enemy)
+			if Count > MostHit then
+				MostHit = Count
+				BestPos = m.pos
+			end
+		end
+	end
+	return BestPos, MostHit
 end
 
 function Common:GetDistanceSqr(Pos1, Pos2)
@@ -138,7 +210,7 @@ function Common:GetHeroCollision(StartPos, EndPos, Width, Target)
 		local h = Game.Hero(i)
 		if h and h ~= Target and h.isEnemy and Common:ValidTarget(h) then
 			local w = Width + h.boundingRadius
-			pointSegment, pointLine, isOnSegment = self:VectorPointProjectionOnLineSegment(StartPos, EndPos, h.pos)
+			local pointSegment, pointLine, isOnSegment = self:VectorPointProjectionOnLineSegment(StartPos, EndPos, h.pos)
 			if isOnSegment and self:GetDistanceSqr(pointSegment, h.pos) < w^2 and self:GetDistanceSqr(StartPos, EndPos) > self:GetDistanceSqr(StartPos, h.pos) then
 				Count = Count + 1
 			end
@@ -153,7 +225,7 @@ function Common:GetMinionCollision(StartPos, EndPos, Width, Target)
 		local m = Game.Minion(i)
 		if m and m ~= Target and not m.isAlly and Common:ValidTarget(m) then
 			local w = Width + m.boundingRadius
-			pointSegment, pointLine, isOnSegment = self:VectorPointProjectionOnLineSegment(StartPos, EndPos, m.pos)
+			local pointSegment, pointLine, isOnSegment = self:VectorPointProjectionOnLineSegment(StartPos, EndPos, m.pos)
 			if isOnSegment and self:GetDistanceSqr(pointSegment, m.pos) < w^2 and self:GetDistanceSqr(StartPos, EndPos) > self:GetDistanceSqr(StartPos, m.pos) then
 				Count = Count + 1
 			end
@@ -185,6 +257,10 @@ function Jinx:__init()
 	self.Menu.Harass:MenuElement({id = "HQ", name = "Use Q", value = true})
 	self.Menu.Harass:MenuElement({id = "HW", name = "Use W", value = true})
 	self.Menu.Harass:MenuElement({id = "HMM", name = "Min Mana To Harass", value = 50, min = 0, max = 100, step = 1})
+	
+	self.Menu:MenuElement({id = "Laneclear", name = "Laneclear", type = MENU})
+	self.Menu.Laneclear:MenuElement({id = "LCQ", name = "Use Q", value = true})
+	self.Menu.Laneclear:MenuElement({id = "LCMM", name = "Min Mana To Laneclear", value = 50, min = 0, max = 100, step = 1})
 	
 	self.Menu:MenuElement({id = "Killsteal", name = "Killsteal", type = MENU})
 	self.Menu.Killsteal:MenuElement({id = "KSW", name = "Killsteal W", value = true})
@@ -244,6 +320,8 @@ function Jinx:Tick()
 		self:Combo()
 	elseif EOW:Mode() == "Harass" then
 		self:Harass()
+	elseif EOW:Mode() == "LaneClear" then
+		self:Laneclear()
 	end
 	
 	self:AutoE()
@@ -323,14 +401,38 @@ function Jinx:Harass()
 		local Distance = Common:GetDistance(myHero.pos, self.Target.pos)
 		if Common:ValidTarget(self.Target, RocketRange) then
 			if Minigun then
-				if Common:EnemiesAround(self.Target.pos, 230) > 1 or Distance > MinigunRange then
+				if Common:EnemiesAround(self.Target.pos, 300) > 1 or Distance > MinigunRange then
 					Order:CastSpell(_Q)
 				end
-			elseif Distance <= MinigunRange and Common:EnemiesAround(self.Target.pos, 230) <= 1 then
+			elseif Distance <= MinigunRange and Common:EnemiesAround(self.Target.pos, 300) <= 1 then
 				Order:CastSpell(_Q)
 			end
 		elseif not Minigun and Distance > 1000 then
 			Order:CastSpell(_Q)
+		end
+	end
+end
+
+function Jinx:Laneclear()
+	if myHero.attackData.state == STATE_WINDUP then
+		return
+	end
+	
+	if Common:GetPercentMP(myHero) < self.Menu.Laneclear.LCMM:Value() then
+		if not self:GotMinigun() and Common:Ready(_Q) then
+			Order:CastSpell(_Q)
+		end
+		return
+	end
+	if self.Menu.Laneclear.LCQ:Value() and Common:Ready(_Q) then
+		local Target = EOW:GetLaneclear()
+		if Target and Target.team == Common.Enemy and Common:ValidTarget(Target) then
+			local MCount = Common:MinionsAround(Target.pos, 300, Common.Enemy)
+			if self:GotMinigun() and MCount > 1 then
+				Order:CastSpell(_Q)
+			elseif not self:GotMinigun() and MCount <= 1 then
+				Order:CastSpell(_Q)
+			end
 		end
 	end
 end
@@ -481,6 +583,18 @@ function Ezreal:__init()
 	self.Menu.Harass:MenuElement({id = "HW", name = "Use W", value = true})
 	self.Menu.Harass:MenuElement({id = "HMM", name = "Min Mana To Harass", value = 50, min = 1, max = 100, step = 1})
 	
+	self.Menu:MenuElement({id = "Laneclear", name = "Laneclear", type = MENU})
+	self.Menu.Laneclear:MenuElement({id = "LCQ", name = "Use Q", value = true})
+	self.Menu.Laneclear:MenuElement({id = "LCMM", name = "Min Mana To Laneclear", value = 50, min = 1, max = 100, step = 1})
+	
+	self.Menu:MenuElement({id = "Lasthit", name = "Lasthit", type = MENU})
+	self.Menu.Lasthit:MenuElement({id = "LHQ", name = "Use Q", value = true})
+	self.Menu.Lasthit:MenuElement({id = "LHMM", name = "Min Mana To Lasthit", value = 40, min = 1, max = 100, step = 1})
+	
+	self.Menu:MenuElement({id = "Jungleclear", name = "Jungleclear", type = MENU})
+	self.Menu.Jungleclear:MenuElement({id = "JCQ", name = "Use Q", value = true})
+	self.Menu.Jungleclear:MenuElement({id = "JCMM", name = "Min Mana To Jungleclear", value = 40, min = 1, max = 100, step = 1})
+	
 	self.Menu:MenuElement({id = "Killsteal", name = "Killsteal", type = MENU})
 	self.Menu.Killsteal:MenuElement({id = "Enabled", name = "Enabled", value = true})
 	self.Menu.Killsteal:MenuElement({id = "KSQ", name = "Use Q", value = true})
@@ -512,6 +626,12 @@ function Ezreal:Tick()
 		self:Combo()
 	elseif EOW:Mode() == "Harass" then
 		self:Harass()
+	elseif EOW:Mode() == "LaneClear" then
+		self:Lasthit()
+		self:Laneclear()
+		self:Jungleclear()
+	elseif EOW:Mode() == "LastHit" then
+		self:Lasthit()
 	end
 	
 	if self.Menu.Killsteal.Enabled:Value() then
@@ -576,6 +696,53 @@ function Ezreal:Harass()
 	
 	if self.Menu.Harass.HW:Value() and Common:Ready(_W) and Common:ValidTarget(self.Target, self.Spells[1].range) then
 		self:CastW(self.Target)
+	end
+end
+
+function Ezreal:Laneclear()
+	if myHero.attackData.state == STATE_WINDUP or Common:GetPercentMP(myHero) < self.Menu.Laneclear.LCMM:Value() then
+		return
+	end
+	if self.Menu.Laneclear.LCQ:Value() and Common:Ready(_Q) then
+		for i = 1, Game.MinionCount() do
+			local m = Game.Minion(i)
+			if m and m.isEnemy and Common:ValidTarget(m, self.Spells[0].range) then
+				self:CastQ(m)
+				break
+			end
+		end
+	end
+end
+
+function Ezreal:Jungleclear()
+	if myHero.attackData.state == STATE_WINDUP or Common:GetPercentMP(myHero) < self.Menu.Jungleclear.JCMM:Value() then
+		return
+	end
+	if self.Menu.Jungleclear.JCQ:Value() and Common:Ready(_Q) then
+		for i = 1, Game.MinionCount(i) do
+			local m = Game.Minion(i)
+			if m and m.team == Common.Neural and Common:ValidTarget(m, self.Spells[0].range) then
+				self:CastQ(m)
+				break
+			end
+		end
+	end
+end
+
+function Ezreal:Lasthit()
+	if myHero.attackData.state == STATE_WINDUP or Common:GetPercentMP(myHero) < self.Menu.Lasthit.LHMM:Value() then
+		return
+	end
+	if self.Menu.Lasthit.LHQ:Value() and Common:Ready(_Q) then
+		for i = 1, Game.MinionCount() do
+			local m = Game.Minion(i)
+			if m and m.isEnemy and Common:ValidTarget(m, self.Spells[0].range) and self.Damage[0](m) >= m.health and myHero.attackData.target ~= m.handle then
+				if myHero.attackData.state == STATE_WINDDOWN or not EOW:CanOrb(m) then
+					self:CastQ(m)
+					break
+				end
+			end
+		end
 	end
 end
 
@@ -659,6 +826,17 @@ function Lux:__init()
 	self.Menu.Harass:MenuElement({id = "HE", name = "Use E", value = true})
 	self.Menu.Harass:MenuElement({id = "HMM", name = "Min Mana To Harass", value = 60, min = 1, max = 100, step = 1})
 	
+	self.Menu:MenuElement({id = "Laneclear", name = "Laneclear", type = MENU})
+	self.Menu.Laneclear:MenuElement({id = "LCQ", name = "Use Q", value = false})
+	self.Menu.Laneclear:MenuElement({id = "LCQC", name = "Min Minions To Hit With Q", value = 2, min = 1, max = 2, step = 1})
+	self.Menu.Laneclear:MenuElement({id = "LCE", name = "Use E", value = true})
+	self.Menu.Laneclear:MenuElement({id = "LCEC", name = "Min Minions To Hit With E", value = 3, min = 1, max = 8, step = 1})
+	self.Menu.Laneclear:MenuElement({id = "LCMM", name = "Min Mana To Laneclear", value = 60, min = 1, max = 100, step = 1})
+	
+	self.Menu:MenuElement({id = "Lasthit", name = "Lasthit", type = MENU})
+	self.Menu.Lasthit:MenuElement({id = "LHQ", name = "Use Q", value = true})
+	self.Menu.Lasthit:MenuElement({id = "LHMM", name = "Min Mana To Lasthit", value = 60, min = 1, max = 100, step = 1})
+	
 	self.Menu:MenuElement({id = "Killsteal", name = "Killsteal", type = MENU})
 	self.Menu.Killsteal:MenuElement({id = "Enabled", name = "Enabled", value = true})
 	self.Menu.Killsteal:MenuElement({id = "KSQ", name = "Use Q", value = true})
@@ -686,11 +864,15 @@ end
 
 function Lux:Tick()
 	self.Target = EOW:GetTarget() or Common:GetTarget()
-	
 	if EOW:Mode() == "Combo" then
 		self:Combo()
 	elseif EOW:Mode() == "Harass" then
 		self:Harass()
+	elseif EOW:Mode() == "LaneClear" then
+		self:LastHit()
+		self:Laneclear()
+	elseif EOW:Mode() == "LastHit" then
+		self:Lasthit()
 	end
 	
 	self:Auto()
@@ -748,6 +930,44 @@ function Lux:Harass()
 			self:CastE(self.Target)
 		elseif self:IsE2() then
 			Order:CastSpell(_E)
+		end
+	end
+end
+
+function Lux:Laneclear()
+	if myHero.attackData.state == STATE_WINDUP or Common:GetPercentMP(myHero) < self.Menu.Laneclear.LCMM:Value() then
+		return
+	end
+	if self.Menu.Laneclear.LCE:Value() and Common:Ready(_E) then
+		if not self:IsE2() then
+			local BestPos, BestHit = Common:GetBestCircularFarmPos(self.Spells[2].range, self.Spells[2].width)
+			if BestPos and BestHit >= self.Menu.Laneclear.LCEC:Value() then
+				Order:CastSpell(_E, BestPos)
+			end
+		else
+			Order:CastSpell(_E)
+		end
+	end
+	if self.Menu.Laneclear.LCQ:Value() and Common:Ready(_Q) then
+		local BestPos, BestHit = Common:GetBestLinearFarmPos(self.Spells[0].range, self.Spells[0].width)
+		if BestPos and BestHit >= self.Menu.Laneclear.LCQC:Value() then
+			Order:CastSpell(_Q, BestPos)
+		end
+	end
+end
+
+function Lux:Lasthit()
+	if myHero.attackData.state == STATE_WINDUP or Common:GetPercentMP(myHero) < self.Menu.Lasthit.LHMM:Value() then
+		return
+	end
+	if self.Menu.Lasthit.LHQ:Value() and Common:Ready(_Q) then
+		for i = 1, Game.MinionCount() do
+			local m = Game.Minion(i)
+			if m and m.isEnemy and Common:ValidTarget(m, self.Spells[0].range) and self.Damage[0](m) > m.health and myHero.attackData.target ~= m.handle then
+				if myHero.attackData.state == STATE_WINDDOWN or not EOW:CanOrb(m) then
+					self:CastQ(m)
+				end
+			end
 		end
 	end
 end
